@@ -1,7 +1,9 @@
 package io.github.spojchil.proverlap.model.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * GitHub Webhook 事件关键信息。
@@ -12,6 +14,8 @@ import lombok.Data;
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class WebhookPayload {
 
     /** 事件动作：opened / synchronize / reopened */

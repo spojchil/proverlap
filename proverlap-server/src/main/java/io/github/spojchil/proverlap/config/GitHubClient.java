@@ -96,21 +96,21 @@ public class GitHubClient {
     }
 
     /**
-     * 在 PR 上发布 Review Comment（行级注释）。
+     * 在 PR 上发布 Review Comment。
      *
-     * @param comments JSON 格式的 Review Comment 列表
+     * @param body Markdown 格式的审查结果文本
      */
-    public void postReview(String owner, String repo, int prNumber, Object comments, long installationId) {
+    public void postReview(String owner, String repo, int prNumber, String body, long installationId) {
         String token = obtainToken(installationId);
-        Map<String, Object> body = Map.of("event", "COMMENT", "comments", comments);
+        Map<String, Object> request = Map.of("event", "COMMENT", "body", body);
         restClient.post()
                 .uri("/repos/{owner}/{repo}/pulls/{number}/reviews", owner, repo, prNumber)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
+                .body(request)
                 .retrieve()
                 .toBodilessEntity();
-        log.info("Review Comment 已发布: {}/{}/#{}", owner, repo, prNumber);
+        log.info("Review 已发布: {}/{}/#{}", owner, repo, prNumber);
     }
 
     // ==================== 令牌管理 ====================
@@ -129,12 +129,16 @@ public class GitHubClient {
 
     /** 使用 JWT 向 GitHub API 请求安装访问令牌 */
     private String requestInstallationToken(String jwt, long installationId) {
-        JsonNode response = restClient.post()
-                .uri("/app/installations/{id}/access_tokens", installationId)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
-                .retrieve()
-                .body(JsonNode.class);
-        return response.get("token").asText();
+        try {
+            String response = restClient.post()
+                    .uri("/app/installations/{id}/access_tokens", installationId)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
+                    .retrieve()
+                    .body(String.class);
+            return objectMapper.readTree(response).get("token").asText();
+        } catch (Exception e) {
+            throw new RuntimeException("GitHub 安装令牌获取失败: installationId=" + installationId, e);
+        }
     }
 
     // ==================== JWT 生成 ====================
