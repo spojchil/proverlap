@@ -183,7 +183,7 @@ public class GitHubClient {
      * 先尝试 PKCS#8（BEGIN PRIVATE KEY），失败则回退 PKCS#1（BEGIN RSA PRIVATE KEY）。
      * PKCS#1 解析使用自建 DER 解析器，不依赖外部 JWT 库或 JDK 内部 API。
      */
-    private static PrivateKey parsePrivateKey(String pem) throws GeneralSecurityException {
+    static PrivateKey parsePrivateKey(String pem) throws GeneralSecurityException {
         String cleaned = pem
                 .replace("-----BEGIN RSA PRIVATE KEY-----", "")
                 .replace("-----END RSA PRIVATE KEY-----", "")
@@ -221,7 +221,7 @@ public class GitHubClient {
         return KeyFactory.getInstance("RSA").generatePrivate(spec);
     }
 
-    private static void readTag(byte[] data, int[] pos, byte expected) {
+    static void readTag(byte[] data, int[] pos, byte expected) {
         if (pos[0] >= data.length || data[pos[0]] != expected) {
             throw new RuntimeException("DER 解析失败: 期望 tag " + expected + "，实际 " +
                     (pos[0] < data.length ? data[pos[0]] : "EOF"));
@@ -229,7 +229,7 @@ public class GitHubClient {
         pos[0]++;
     }
 
-    private static int readLength(byte[] data, int[] pos) {
+    static int readLength(byte[] data, int[] pos) {
         int b = data[pos[0]++] & 0xFF;
         if ((b & 0x80) == 0) {
             return b; // 短格式
