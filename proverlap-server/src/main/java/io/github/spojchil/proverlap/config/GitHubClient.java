@@ -90,7 +90,7 @@ public class GitHubClient {
                     .retrieve()
                     .body(String.class);
         } catch (Exception e) {
-            log.debug("仓库文件不存在: {}/{} — {}", owner, repo, path);
+            log.info("仓库文件不存在: {}/{} — {}", owner, repo, path);
             return null;
         }
     }
