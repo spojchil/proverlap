@@ -1,0 +1,35 @@
+# 敏感信息
+.env
+
+# Git
+.git/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 构建产物
+target/
+*.class
+*.jar
+*.war
+
+# 日志
+logs/
+*.log
+
+# AI 助手
+.claude/
+
+# Docker 自身
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试
+proverlap-server/src/test/
