@@ -31,7 +31,7 @@ jobs:
           cache: maven
 
       - name: 编译
-        run: ./mvnw compile -q
+        run: bash ./mvnw compile -q
 
       - name: 测试
-        run: ./mvnw test
+        run: bash ./mvnw test
