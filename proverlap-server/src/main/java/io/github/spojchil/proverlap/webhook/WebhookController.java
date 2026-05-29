@@ -3,6 +3,7 @@ package io.github.spojchil.proverlap.webhook;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
+import io.github.spojchil.proverlap.review.ReviewOrchestrator;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class WebhookController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final WebhookValidator validator;
+    private final ReviewOrchestrator reviewOrchestrator;
 
     @PostMapping("/webhook/github")
     public ResponseEntity<String> handleWebhook(
@@ -79,8 +81,7 @@ public class WebhookController {
             log.info("收到 PR Webhook: {} #{}, action={}",
                     payload.getFullName(), payload.getPrNumber(), payload.getAction());
 
-            // TODO P2: 异步触发审查链路
-            // reviewOrchestrator.trigger(payload);
+            reviewOrchestrator.review(payload);
 
             return ResponseEntity.ok("ok");
 
