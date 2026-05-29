@@ -1,0 +1,46 @@
+# === 敏感信息 ===
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+application-local.yml
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# === 构建产物 ===
+target/
+*.class
+*.jar
+*.war
+node_modules/
+dist/
+build/
+
+# === 日志 ===
+logs/
+*.log
+
+# === 系统文件 ===
+.DS_Store
+Thumbs.db
+
+# === 本地 AI 配置（不提交） ===
+# 共享的 .claude/ 内容是白名单模式：
+#   .claude/settings.json  → 团队共享配置
+#   .claude/skills/        → 团队共享技能
+# 本地文件用 .local. 后缀：
+#   .claude/settings.local.json
+#   *.local.md
+.claude/*
+!.claude/settings.json
+!.claude/skills/
+.claude/settings.local.json
+.claude/plans/
+.claude/worktrees/
+*.local.md

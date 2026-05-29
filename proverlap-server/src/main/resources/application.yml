@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: proverlap
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # 数据源（由 Docker Compose 注入或本地配置覆盖）
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/proverlap}
+    username: ${DB_USERNAME:proverlap}
+    password: ${DB_PASSWORD:proverlap}
+    driver-class-name: org.postgresql.Driver
+
+  # Redis（由 Docker Compose 注入或本地配置覆盖）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+  type-aliases-package: io.github.spojchil.proverlap.model.entity
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deletedAt
+      logic-delete-value: "now()"
+      logic-not-delete-value: "0"
+
+# LLM 模型配置（可插拔，按需替换提供商）
+proverlap:
+  models:
+    model-a:
+      base-url: ${MODEL_A_BASE_URL}
+      api-key: ${MODEL_A_API_KEY}
+      model-name: ${MODEL_A_MODEL}
+    model-b:
+      base-url: ${MODEL_B_BASE_URL}
+      api-key: ${MODEL_B_API_KEY}
+      model-name: ${MODEL_B_MODEL}
+
+  # GitHub App 配置
+  github:
+    app-id: ${GITHUB_APP_ID}
+    private-key: ${GITHUB_PRIVATE_KEY}
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET}
+
+  # Tier 阈值
+  tier:
+    t1-max-diff-lines: 50
+    t2-max-diff-lines: 500
+
+# 服务端口
+server:
+  port: ${SERVER_PORT:8080}

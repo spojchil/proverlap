@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  # ===== PostgreSQL =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: proverlap-postgres
+    environment:
+      POSTGRES_USER: proverlap
+      POSTGRES_PASSWORD: proverlap
+      POSTGRES_DB: proverlap
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proverlap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ===== Redis =====
+  redis:
+    image: redis:7-alpine
+    container_name: proverlap-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ===== PRoverlap 服务（可选：不构建镜像时可注释掉，用 mvn spring-boot:run） =====
+  # app:
+  #   build: .
+  #   container_name: proverlap-app
+  #   ports:
+  #     - "8080:8080"
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+volumes:
+  postgres_data:
