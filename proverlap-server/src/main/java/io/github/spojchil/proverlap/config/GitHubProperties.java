@@ -23,4 +23,7 @@ public class GitHubProperties {
 
     /** Webhook HMAC-SHA256 签名密钥 */
     private String webhookSecret;
+
+    /** GitHub App 安装 ID（Webhook 注入或 API 模式手动配置） */
+    private Long installationId;
 }
