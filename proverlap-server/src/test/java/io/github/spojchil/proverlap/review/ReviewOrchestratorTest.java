@@ -108,7 +108,7 @@ class ReviewOrchestratorTest {
     @Test
     @DisplayName("reviewSync — 同步审查返回 ReviewResult")
     void syncNormalFlow() {
-        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER))
                 .thenReturn(DIFF);
         doReturn(ChatResponse.builder()
                         .aiMessage(AiMessage.from("发现安全隐患"))
@@ -127,7 +127,7 @@ class ReviewOrchestratorTest {
     @Test
     @DisplayName("reviewSync — diff 为空时返回空结果")
     void syncEmptyDiff() {
-        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER))
                 .thenReturn("");
 
         ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
@@ -137,12 +137,16 @@ class ReviewOrchestratorTest {
     }
 
     @Test
-    @DisplayName("reviewSync — 未配置 installationId 抛 IllegalStateException")
-    void syncNoInstallationId() {
+    @DisplayName("reviewSync — 未配置任何认证时返回配置指引")
+    void syncNoAuthReturnsGuide() {
         gitHubProperties.setInstallationId(null);
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER))
+                .thenThrow(new IllegalStateException("未配置 GitHub 认证..."));
 
-        assertThrows(IllegalStateException.class,
-                () -> orchestrator.reviewSync(OWNER, REPO, PR_NUMBER));
+        ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
+
+        assertTrue(result.getFindings().contains("未配置 GitHub 认证"),
+                "应返回配置指引: " + result.getFindings());
     }
 
     // ==================== 工具方法 ====================

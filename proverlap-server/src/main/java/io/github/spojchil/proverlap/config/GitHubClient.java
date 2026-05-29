@@ -68,6 +68,55 @@ public class GitHubClient {
      */
     public String getPullRequestDiff(String owner, String repo, int prNumber, long installationId) {
         String token = obtainToken(installationId);
+        return fetchDiffWithAuth(owner, repo, prNumber, token);
+    }
+
+    /**
+     * 获取 PR diff — 无需安装 ID（API 模式）。
+     * <p>
+     * 按优先级尝试三种认证方式：
+     * <ol>
+     *   <li>GitHub App Installation Token（需配置 installationId，Webhook 模式）</li>
+     *   <li>Personal Access Token（需配置 token，API 模式最低配置）</li>
+     * </ol>
+     *
+     * @throws IllegalStateException 两种方式均未配置或均失败
+     */
+    public String getPullRequestDiff(String owner, String repo, int prNumber) {
+        // 渠道 1：GitHub App Installation Token
+        if (props.getInstallationId() != null) {
+            try {
+                return getPullRequestDiff(owner, repo, prNumber, props.getInstallationId());
+            } catch (Exception e) {
+                log.warn("Installation Token 方式失败: {}", e.getMessage());
+            }
+        }
+
+        // 渠道 2：Personal Access Token
+        if (props.getToken() != null && !props.getToken().isBlank()) {
+            try {
+                return fetchDiffWithAuth(owner, repo, prNumber, props.getToken());
+            } catch (Exception e) {
+                log.warn("PAT Token 方式失败: {}", e.getMessage());
+                throw new IllegalStateException("PAT Token 认证失败，请检查 GITHUB_TOKEN 是否正确。错误: " + e.getMessage(), e);
+            }
+        }
+
+        // 两种方式都未配置 → 给出清晰的配置指引
+        String msg = "未配置 GitHub 认证。请配置以下任一方式：\n"
+                + "  环境变量 GITHUB_TOKEN=ghp_xxx\n"
+                + "    → 在 GitHub Settings → Developer settings → Personal access tokens 生成\n"
+                + "    → 勾选 public_repo 权限（公开仓库）或 repo 权限（私有仓库）\n"
+                + "  环境变量 GITHUB_INSTALLATION_ID=xxx\n"
+                + "    → GitHub App 安装 ID（Webhook 模式自动注入，API 模式手动配置）\n"
+                + "  当前配置: installationId="
+                + (props.getInstallationId() != null ? "已配置" : "未配置")
+                + ", token=" + (props.getToken() != null ? "已配置" : "未配置");
+        throw new IllegalStateException(msg);
+    }
+
+    /** 使用指定 token 调用 GitHub API 获取 diff */
+    private String fetchDiffWithAuth(String owner, String repo, int prNumber, String token) {
         return restClient.get()
                 .uri("/repos/{owner}/{repo}/pulls/{number}", owner, repo, prNumber)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

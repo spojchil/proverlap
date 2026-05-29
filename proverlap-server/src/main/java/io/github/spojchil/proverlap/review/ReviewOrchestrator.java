@@ -85,12 +85,17 @@ public class ReviewOrchestrator {
      * @return 审查结果（含 Tier 分级和 LLM 输出）
      */
     public ReviewResult reviewSync(String owner, String repo, int prNumber) {
-        Long installationId = gitHubProperties.getInstallationId();
-        if (installationId == null) {
-            throw new IllegalStateException("API 模式需要配置 GITHUB_INSTALLATION_ID");
+        String diff;
+        try {
+            diff = gitHubClient.getPullRequestDiff(owner, repo, prNumber);
+        } catch (IllegalStateException e) {
+            return ReviewResult.builder()
+                    .owner(owner).repo(repo).prNumber(prNumber)
+                    .tier(TierLevel.TIER_1)
+                    .findings("获取 PR diff 失败：\n" + e.getMessage())
+                    .build();
         }
 
-        String diff = gitHubClient.getPullRequestDiff(owner, repo, prNumber, installationId);
         if (diff == null || diff.isBlank()) {
             return ReviewResult.builder()
                     .owner(owner).repo(repo).prNumber(prNumber)
