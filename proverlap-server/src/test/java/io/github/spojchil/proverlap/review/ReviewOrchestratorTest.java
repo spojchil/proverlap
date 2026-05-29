@@ -1,17 +1,20 @@
 package io.github.spojchil.proverlap.review;
 
 import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.config.GitHubClient;
+import io.github.spojchil.proverlap.config.GitHubProperties;
+import io.github.spojchil.proverlap.config.TierProperties;
+import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
+import io.github.spojchil.proverlap.model.enums.TierLevel;
 import io.github.spojchil.proverlap.review.prompts.SecurityPrompt;
+import io.github.spojchil.proverlap.tier.TierClassifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -34,25 +37,33 @@ class ReviewOrchestratorTest {
     private ChatModel modelA;
 
     private SecurityPrompt securityPrompt;
+    private TierClassifier tierClassifier;
+    private GitHubProperties gitHubProperties;
     private ReviewOrchestrator orchestrator;
 
     private static final String OWNER = "test-owner";
     private static final String REPO = "test-repo";
     private static final int PR_NUMBER = 1;
     private static final long INSTALLATION_ID = 123L;
-    private static final String DIFF = "diff --git a/Foo.java b/Foo.java\n+password = \"secret\";";
+    private static final String DIFF = "diff --git a/Foo.java b/Foo.java\n+password = \"secret\";\n";
 
     @BeforeEach
     void setUp() {
         securityPrompt = new SecurityPrompt();
-        orchestrator = new ReviewOrchestrator(gitHubClient, modelA, securityPrompt);
+        TierProperties tierProperties = new TierProperties();
+        tierProperties.setT1MaxDiffLines(50);
+        tierProperties.setT2MaxDiffLines(500);
+        tierClassifier = spy(new TierClassifier(tierProperties));
+        gitHubProperties = new GitHubProperties();
+        gitHubProperties.setInstallationId(INSTALLATION_ID);
+        orchestrator = new ReviewOrchestrator(gitHubClient, modelA, securityPrompt, tierClassifier, gitHubProperties);
     }
 
-    // ==================== 正常流程 ====================
+    // ==================== Webhook 异步模式 ====================
 
     @Test
-    @DisplayName("review — 正常流程：拉 diff → LLM 审查 → 发评论")
-    void normalFlow() {
+    @DisplayName("review — 异步模式：拉 diff → LLM 审查 → 发评论")
+    void asyncNormalFlow() {
         when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
                 .thenReturn(DIFF);
         doReturn(ChatResponse.builder()
@@ -60,33 +71,27 @@ class ReviewOrchestratorTest {
                         .build())
                 .when(modelA).chat(anyList());
 
-        WebhookPayload payload = buildPayload();
-        orchestrator.review(payload);
+        orchestrator.review(buildPayload());
 
-        verify(gitHubClient).getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID);
-        verify(modelA).chat(anyList());
         verify(gitHubClient).postReview(eq(OWNER), eq(REPO), eq(PR_NUMBER),
                 eq("发现安全隐患"), eq(INSTALLATION_ID));
     }
 
-    // ==================== 边界条件 ====================
-
     @Test
-    @DisplayName("review — diff 为空时跳过审查")
-    void emptyDiff() {
+    @DisplayName("review — 异步模式：diff 为空时跳过")
+    void asyncEmptyDiff() {
         when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
                 .thenReturn("");
 
         orchestrator.review(buildPayload());
 
-        verify(gitHubClient).getPullRequestDiff(anyString(), anyString(), anyInt(), anyLong());
         verify(modelA, never()).chat(anyList());
         verify(gitHubClient, never()).postReview(anyString(), anyString(), anyInt(), any(), anyLong());
     }
 
     @Test
-    @DisplayName("review — LLM 调用异常时贴 error comment")
-    void llmErrorPostsErrorComment() {
+    @DisplayName("review — 异步模式：LLM 异常时贴 error comment")
+    void asyncLlmErrorPostsErrorComment() {
         when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
                 .thenReturn(DIFF);
         doThrow(new RuntimeException("LLM 超时"))
@@ -98,16 +103,46 @@ class ReviewOrchestratorTest {
                 contains("PRoverlap 审查异常"), eq(INSTALLATION_ID));
     }
 
+    // ==================== API 同步模式 ====================
+
     @Test
-    @DisplayName("review — diff 拉取失败时贴 error comment")
-    void diffFetchErrorPostsErrorComment() {
+    @DisplayName("reviewSync — 同步审查返回 ReviewResult")
+    void syncNormalFlow() {
         when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
-                .thenThrow(new RuntimeException("API 限流"));
+                .thenReturn(DIFF);
+        doReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.from("发现安全隐患"))
+                        .build())
+                .when(modelA).chat(anyList());
 
-        orchestrator.review(buildPayload());
+        ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
 
-        verify(gitHubClient).postReview(eq(OWNER), eq(REPO), eq(PR_NUMBER),
-                contains("PRoverlap 审查异常"), eq(INSTALLATION_ID));
+        assertEquals(OWNER, result.getOwner());
+        assertEquals(REPO, result.getRepo());
+        assertEquals(PR_NUMBER, result.getPrNumber());
+        assertEquals("发现安全隐患", result.getFindings());
+        verify(gitHubClient, never()).postReview(anyString(), anyString(), anyInt(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("reviewSync — diff 为空时返回空结果")
+    void syncEmptyDiff() {
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
+                .thenReturn("");
+
+        ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
+
+        assertEquals(TierLevel.TIER_1, result.getTier());
+        assertEquals("(PR diff 为空)", result.getFindings());
+    }
+
+    @Test
+    @DisplayName("reviewSync — 未配置 installationId 抛 IllegalStateException")
+    void syncNoInstallationId() {
+        gitHubProperties.setInstallationId(null);
+
+        assertThrows(IllegalStateException.class,
+                () -> orchestrator.reviewSync(OWNER, REPO, PR_NUMBER));
     }
 
     // ==================== 工具方法 ====================
