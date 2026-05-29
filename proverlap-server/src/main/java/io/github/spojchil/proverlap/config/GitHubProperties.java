@@ -26,4 +26,7 @@ public class GitHubProperties {
 
     /** GitHub App 安装 ID（Webhook 注入或 API 模式手动配置） */
     private Long installationId;
+
+    /** Personal Access Token（公开仓库零配置方案，优先级低于 Installation ID） */
+    private String token;
 }

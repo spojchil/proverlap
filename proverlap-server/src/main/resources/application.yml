@@ -48,6 +48,8 @@ proverlap:
     app-id: ${GITHUB_APP_ID}
     private-key: ${GITHUB_PRIVATE_KEY}
     webhook-secret: ${GITHUB_WEBHOOK_SECRET}
+    installation-id: ${GITHUB_INSTALLATION_ID:}
+    token: ${GITHUB_TOKEN:}
 
   # Tier 阈值
   tier:
