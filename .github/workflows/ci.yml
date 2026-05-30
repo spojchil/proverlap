@@ -51,8 +51,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 提取版本号
+        if: github.ref_name == 'main'
+        id: version
+        run: |
+          VERSION=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>//;s/<\/version>//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: 构建并推送镜像
         if: github.ref_name == 'main'
         run: |
           docker compose build
+          docker tag ghcr.io/spojchil/proverlap:latest ghcr.io/spojchil/proverlap:${{ steps.version.outputs.version }}
           docker compose push
+          docker push ghcr.io/spojchil/proverlap:${{ steps.version.outputs.version }}
