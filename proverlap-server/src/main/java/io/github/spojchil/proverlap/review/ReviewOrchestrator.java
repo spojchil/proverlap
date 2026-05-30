@@ -61,7 +61,7 @@ public class ReviewOrchestrator {
                 return;
             }
 
-            String result = doReview(diff, owner, repo);
+            String result = doReview(diff, owner, repo, payload.getPrNumber());
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
             gitHubClient.postReview(owner, repo, payload.getPrNumber(),
                     result, payload.getInstallationId());
@@ -107,7 +107,7 @@ public class ReviewOrchestrator {
         TierLevel tier = tierClassifier.classify(countLines(diff), ContextBuilder.extractFiles(diff));
         log.info("同步审查: {}/{} #{} → {}", owner, repo, prNumber, tier.getCode());
 
-        String findings = doReview(diff, owner, repo);
+        String findings = doReview(diff, owner, repo, prNumber);
         return ReviewResult.builder()
                 .owner(owner).repo(repo).prNumber(prNumber)
                 .tier(tier)
@@ -116,8 +116,9 @@ public class ReviewOrchestrator {
     }
 
     /** 调用 LLM 执行审查，返回原始输出 */
-    private String doReview(String diff, String owner, String repo) {
-        String context = contextBuilder.build(owner, repo, diff);
+    private String doReview(String diff, String owner, String repo, int prNumber) {
+        String ref = gitHubClient.getPrBranch(owner, repo, prNumber);
+        String context = contextBuilder.build(owner, repo, diff, ref != null ? ref : "");
         ChatResponse response = modelA.chat(List.of(
                 SystemMessage.from(securityPrompt.system()),
                 UserMessage.from(context)));

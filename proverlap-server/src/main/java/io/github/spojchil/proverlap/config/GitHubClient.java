@@ -141,6 +141,15 @@ public class GitHubClient {
      * @return 文件内容文本，文件不存在时返回 {@code null}
      */
     public String getRepoFile(String owner, String repo, String path) {
+        return getRepoFile(owner, repo, path, (String) null);
+    }
+
+    /**
+     * 读取仓库中指定文件的内容（API 模式，指定分支）。
+     *
+     * @param ref 分支名或 commit SHA，为 null 时走默认分支
+     */
+    public String getRepoFile(String owner, String repo, String path, String ref) {
         // 渠道 1：Installation Token
         if (props.getInstallationId() != null) {
             try {
@@ -151,23 +160,59 @@ public class GitHubClient {
         }
         // 渠道 2：PAT
         if (props.getToken() != null && !props.getToken().isBlank()) {
-            return fetchRepoFile(owner, repo, path, props.getToken());
+            return fetchRepoFile(owner, repo, path, props.getToken(), ref);
         }
         log.warn("未配置 GitHub 认证，无法读取文件: {}/{}", repo, path);
         return null;
     }
 
-    private String fetchRepoFile(String owner, String repo, String path, String token) {
+    /**
+     * 获取 PR 的 head 分支名，用于上下文文件拉取。
+     */
+    public String getPrBranch(String owner, String repo, int prNumber) {
+        String token = null;
+        if (props.getInstallationId() != null) {
+            try {
+                token = obtainToken(props.getInstallationId());
+            } catch (Exception ignored) {}
+        }
+        if (token == null && props.getToken() != null) {
+            token = props.getToken();
+        }
+        if (token == null) {
+            log.warn("无法获取 PR 分支信息：未配置认证");
+            return null;
+        }
         try {
+            String json = restClient.get()
+                    .uri("/repos/{owner}/{repo}/pulls/{number}", owner, repo, prNumber)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .retrieve()
+                    .body(String.class);
+            return objectMapper.readTree(json).path("head").path("ref").asText();
+        } catch (Exception e) {
+            log.warn("获取 PR 分支信息失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String fetchRepoFile(String owner, String repo, String path, String token, String ref) {
+        try {
+            String uri = "/repos/{owner}/{repo}/contents/{path}";
+            if (ref != null) uri += "?ref=" + ref;
             return restClient.get()
-                    .uri("/repos/{owner}/{repo}/contents/{path}", owner, repo, path)
+                    .uri(uri, owner, repo, path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .retrieve()
                     .body(String.class);
         } catch (Exception e) {
-            log.info("仓库文件不存在: {}/{} — {}", owner, repo, path);
+            log.info("仓库文件不存在: {}/{}", repo, path);
             return null;
         }
+    }
+
+    private String fetchRepoFile(String owner, String repo, String path, String token) {
+        return fetchRepoFile(owner, repo, path, token, null);
     }
 
     /**
@@ -268,6 +313,7 @@ public class GitHubClient {
                 .replace("-----END RSA PRIVATE KEY-----", "")
                 .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
+                .replace("\\n", "")     // docker env_file 单行格式
                 .replaceAll("\\s", "");
         byte[] decoded = Base64.getDecoder().decode(cleaned);
 

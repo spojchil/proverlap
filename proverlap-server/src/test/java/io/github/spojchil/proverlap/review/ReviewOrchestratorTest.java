@@ -63,7 +63,7 @@ class ReviewOrchestratorTest {
         gitHubProperties = new GitHubProperties();
         gitHubProperties.setInstallationId(INSTALLATION_ID);
         orchestrator = new ReviewOrchestrator(gitHubClient, modelA, securityPrompt, tierClassifier, gitHubProperties, contextBuilder);
-        when(contextBuilder.build(anyString(), anyString(), anyString())).thenReturn(DIFF);
+        when(contextBuilder.build(anyString(), anyString(), anyString(), anyString())).thenReturn(DIFF);
     }
 
     // ==================== Webhook 异步模式 ====================

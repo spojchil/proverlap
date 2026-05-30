@@ -14,6 +14,7 @@ import org.mockito.quality.Strictness;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.any;
 
 /**
  * ContextBuilder 上下文组装单元测试。
@@ -38,8 +39,8 @@ class ContextBuilderTest {
     @BeforeEach
     void setUp() {
         builder = new ContextBuilder(gitHubClient);
-        // 默认所有文件不存在，需要特定文件的测试覆盖此 stub
-        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString()))
+        // 默认所有文件不存在，匹配 4 参数（owner, repo, path, ref）
+        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(null);
     }
 
@@ -48,10 +49,10 @@ class ContextBuilderTest {
     @Test
     @DisplayName("build — 包含 CLAUDE.md 规范文件内容")
     void includesClaudeMd() {
-        when(gitHubClient.getRepoFile(OWNER, REPO, "CLAUDE.md"))
+        when(gitHubClient.getRepoFile(eq(OWNER), eq(REPO), eq("CLAUDE.md"), anyString()))
                 .thenReturn("# 项目规范\n使用 Java 21");
 
-        String result = builder.build(OWNER, REPO, DIFF);
+        String result = builder.build(OWNER, REPO, DIFF, "");
 
         assertTrue(result.contains("CLAUDE.md"), "应包含 CLAUDE.md 标题");
         assertTrue(result.contains("使用 Java 21"), "应包含文件内容");
@@ -60,10 +61,10 @@ class ContextBuilderTest {
     @Test
     @DisplayName("build — 规范文件不存在时静默跳过")
     void specFileNotFound() {
-        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString()))
+        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
-        String result = builder.build(OWNER, REPO, DIFF);
+        String result = builder.build(OWNER, REPO, DIFF, "");
 
         assertTrue(result.contains("unified diff"), "至少应包含 diff");
         assertFalse(result.contains("项目规范文件"), "不应出现规范文件标题");
@@ -74,12 +75,12 @@ class ContextBuilderTest {
     @Test
     @DisplayName("build — 包含变更 Java 文件的完整内容")
     void includesFullFileContent() {
-        when(gitHubClient.getRepoFile(anyString(), anyString(), endsWith("CLAUDE.md")))
+        when(gitHubClient.getRepoFile(anyString(), anyString(), endsWith("CLAUDE.md"), anyString()))
                 .thenReturn(null);
-        when(gitHubClient.getRepoFile(anyString(), anyString(), endsWith("Foo.java")))
+        when(gitHubClient.getRepoFile(anyString(), anyString(), endsWith("Foo.java"), anyString()))
                 .thenReturn("public class Foo {\n  int x;\n}\n");
 
-        String result = builder.build(OWNER, REPO, DIFF);
+        String result = builder.build(OWNER, REPO, DIFF, "");
 
         assertTrue(result.contains("Foo.java"), "应包含文件名");
         assertTrue(result.contains("int x"), "应包含文件内容");
@@ -92,10 +93,10 @@ class ContextBuilderTest {
         String mdDiff = "diff --git a/README.md b/README.md\n"
                 + "--- a/README.md\n+++ b/README.md\n+updated\n";
 
-        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString()))
+        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
-        String result = builder.build(OWNER, REPO, mdDiff);
+        String result = builder.build(OWNER, REPO, mdDiff, "");
 
         assertFalse(result.contains("变更文件完整内容"),
                 "README.md 不应拉取完整内容");
@@ -157,10 +158,10 @@ class ContextBuilderTest {
     @Test
     @DisplayName("build — 始终包含 unified diff")
     void alwaysIncludesDiff() {
-        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString()))
+        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
-        String result = builder.build(OWNER, REPO, DIFF);
+        String result = builder.build(OWNER, REPO, DIFF, "");
 
         assertTrue(result.contains("unified diff"), "应包含 diff 标题");
         assertTrue(result.contains("return calc(a, b, c)"), "应包含 diff 内容");

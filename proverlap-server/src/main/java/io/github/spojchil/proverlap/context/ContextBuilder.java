@@ -48,15 +48,15 @@ public class ContextBuilder {
      * @param diff     PR unified diff 文本
      * @return 组装后的完整上下文文本
      */
-    public String build(String owner, String repo, String diff) {
+    public String build(String owner, String repo, String diff, String ref) {
         StringBuilder ctx = new StringBuilder();
 
         // 1. 项目规范文件
-        appendSpecFiles(owner, repo, ctx);
+        appendSpecFiles(owner, repo, ctx, ref);
 
         // 2. 变更文件完整内容
         List<String> changedFiles = extractFiles(diff);
-        appendFullFiles(owner, repo, changedFiles, ctx);
+        appendFullFiles(owner, repo, changedFiles, ctx, ref);
 
         // 3. PR diff
         ctx.append("## 本次变更 (unified diff)\n\n```diff\n");
@@ -74,10 +74,10 @@ public class ContextBuilder {
     }
 
     /** 追加项目规范文件 */
-    private void appendSpecFiles(String owner, String repo, StringBuilder ctx) {
+    private void appendSpecFiles(String owner, String repo, StringBuilder ctx, String ref) {
         boolean hasSpec = false;
         for (String spec : SPEC_FILES) {
-            String content = gitHubClient.getRepoFile(owner, repo, spec);
+            String content = gitHubClient.getRepoFile(owner, repo, spec, ref);
             if (content != null && !content.isBlank()) {
                 if (!hasSpec) {
                     ctx.append("## 项目规范文件\n\n");
@@ -91,7 +91,7 @@ public class ContextBuilder {
     }
 
     /** 追加变更文件的完整内容 */
-    private void appendFullFiles(String owner, String repo, List<String> files, StringBuilder ctx) {
+    private void appendFullFiles(String owner, String repo, List<String> files, StringBuilder ctx, String ref) {
         List<String> codeFiles = files.stream()
                 .filter(ContextBuilder::isCodeFile)
                 .limit(MAX_FILES)
@@ -101,7 +101,7 @@ public class ContextBuilder {
 
         ctx.append("## 变更文件完整内容\n\n");
         for (String path : codeFiles) {
-            String content = gitHubClient.getRepoFile(owner, repo, path);
+            String content = gitHubClient.getRepoFile(owner, repo, path, ref);
             if (content == null || content.isBlank()) continue;
 
             String ext = path.substring(path.lastIndexOf('.') + 1);
@@ -113,7 +113,7 @@ public class ContextBuilder {
     }
 
     /** 从 diff 文本提取文件列表 */
-    static List<String> extractFiles(String diff) {
+    public static List<String> extractFiles(String diff) {
         List<String> files = new ArrayList<>();
         for (String line : diff.split("\n")) {
             if (line.startsWith("+++ b/")) {
