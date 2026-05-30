@@ -32,4 +32,7 @@ public class WebhookPayload {
 
     /** PR head commit SHA（Check Run 需要） */
     private String commitSha;
+
+    /** PR 标题（用于解析 Conventional Commits 类型，如 "feat: 新增登录"） */
+    private String prTitle;
 }

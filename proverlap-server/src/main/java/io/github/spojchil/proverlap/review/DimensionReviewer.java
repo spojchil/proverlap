@@ -47,8 +47,28 @@ public class DimensionReviewer {
     private final MaintainabilityPrompt maintainabilityPrompt;
     private final TestCoveragePrompt testCoveragePrompt;
 
+    /** 标准 Conventional Commits: type(scope)!: / type: / type! / type( */
     private static final Pattern CONVENTIONAL_TYPE = Pattern.compile(
-            "^(feat|fix|perf|refactor|docs|style|chore|test|build|ci|revert)[\\(!:]");
+            "^(feat|fix|perf|refactor|docs|style|chore|test|build|ci|revert)" +
+            "[\\(!:\\s\\[#]", Pattern.CASE_INSENSITIVE);
+
+    /** Issue 引用: Fix #NNN: / Resolves #NNN: */
+    private static final Pattern ISSUE_FIX = Pattern.compile(
+            "^(fix(?:es)?|resolve(?:s)?)[:\\s]+#\\d+", Pattern.CASE_INSENSITIVE);
+
+    /** 祈使动词 → PR 类型映射 */
+    private static final java.util.Map<String, String> IMPERATIVE_TYPE = java.util.Map.ofEntries(
+            java.util.Map.entry("add", "feat"), java.util.Map.entry("adding", "feat"),
+            java.util.Map.entry("fix", "fix"), java.util.Map.entry("fixes", "fix"),
+            java.util.Map.entry("remove", "chore"), java.util.Map.entry("removes", "chore"),
+            java.util.Map.entry("delete", "chore"), java.util.Map.entry("deletes", "chore"),
+            java.util.Map.entry("update", "feat"), java.util.Map.entry("updates", "feat"),
+            java.util.Map.entry("bump", "chore"), java.util.Map.entry("bumps", "chore"),
+            java.util.Map.entry("refactor", "refactor"), java.util.Map.entry("revert", "revert"),
+            java.util.Map.entry("document", "docs"), java.util.Map.entry("docs", "docs"),
+            java.util.Map.entry("adds", "feat"), java.util.Map.entry("added", "feat"),
+            java.util.Map.entry("fixed", "fix"), java.util.Map.entry("removed", "chore"),
+            java.util.Map.entry("updated", "feat"), java.util.Map.entry("deleted", "chore"));
 
     /** 维度 × 模型矩阵：PR 类型 → 维度任务列表 */
     private final Map<String, List<DimensionTask>> matrix;
@@ -168,11 +188,25 @@ public class DimensionReviewer {
         return response.aiMessage().text();
     }
 
-    /** 解析 PR 标题中的 Conventional Commits 类型 */
+    /** 解析 PR 标题 → PR 类型（feat/fix/perf/...），未识别回退 "feat" */
     static String parseType(String prTitle) {
         if (prTitle == null || prTitle.isBlank()) return "feat";
-        Matcher m = CONVENTIONAL_TYPE.matcher(prTitle.trim());
-        return m.find() ? m.group(1) : "feat";
+        String title = prTitle.trim();
+
+        // 1. 标准 Conventional Commits（含大小写变体，feat:/Fix:/FIX: 等）
+        Matcher conv = CONVENTIONAL_TYPE.matcher(title);
+        if (conv.find()) return conv.group(1).toLowerCase();
+
+        // 2. Issue 引用（Fix #123: / Resolves #456:）
+        Matcher issue = ISSUE_FIX.matcher(title);
+        if (issue.find()) return "fix";
+
+        // 3. 祈使动词（Add / Remove / Update / Bump ...）
+        String firstWord = title.split("\\s+", 2)[0].toLowerCase().replaceAll("[^a-z]", "");
+        String type = IMPERATIVE_TYPE.get(firstWord);
+        if (type != null) return type;
+
+        return "feat";
     }
 
     /** 按 PR 类型 + Tier 选择维度任务 */

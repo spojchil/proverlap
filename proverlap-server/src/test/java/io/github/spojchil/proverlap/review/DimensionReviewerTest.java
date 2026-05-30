@@ -61,23 +61,55 @@ class DimensionReviewerTest {
     // ==================== PR 类型解析 ====================
 
     @Test
-    @DisplayName("parseType — feat: 前缀 → feat")
-    void parseFeat() {
-        assertEquals("feat", DimensionReviewer.parseType("feat: 新增 OAuth2 登录"));
+    @DisplayName("parseType — 标准 Conventional Commits")
+    void parseStandard() {
+        assertEquals("feat", DimensionReviewer.parseType("feat: 新增登录"));
         assertEquals("feat", DimensionReviewer.parseType("feat(user): add login"));
+        assertEquals("fix", DimensionReviewer.parseType("fix: 修复竞态"));
+        assertEquals("fix", DimensionReviewer.parseType("fix(auth): 修复超时"));
+        assertEquals("docs", DimensionReviewer.parseType("docs: 更新文档"));
+        assertEquals("chore", DimensionReviewer.parseType("chore(deps): bump version"));
+        assertEquals("refactor", DimensionReviewer.parseType("refactor(api): clean up"));
+        assertEquals("ci", DimensionReviewer.parseType("ci: pin actions"));
+        assertEquals("revert", DimensionReviewer.parseType("revert: 回退提交"));
     }
 
     @Test
-    @DisplayName("parseType — fix: 前缀 → fix")
-    void parseFix() {
-        assertEquals("fix", DimensionReviewer.parseType("fix: 修复并发竞态"));
-        assertEquals("fix", DimensionReviewer.parseType("fix(auth): 修复登录超时"));
+    @DisplayName("parseType — 大小写变体")
+    void parseCaseVariants() {
+        assertEquals("fix", DimensionReviewer.parseType("Fix: 修复问题"));
+        assertEquals("fix", DimensionReviewer.parseType("FIX: 紧急修复"));
+        assertEquals("docs", DimensionReviewer.parseType("Docs: 文档更新"));
+        assertEquals("feat", DimensionReviewer.parseType("Feat: 新功能"));
     }
 
     @Test
-    @DisplayName("parseType — 无前缀回退 feat")
+    @DisplayName("parseType — Issue 引用格式")
+    void parseIssueReference() {
+        assertEquals("fix", DimensionReviewer.parseType("Fix #5878: 修复 DeepSeek 推理"));
+        assertEquals("fix", DimensionReviewer.parseType("Fixes #123: handle edge case"));
+        assertEquals("fix", DimensionReviewer.parseType("Resolves #456: 解决超时问题"));
+    }
+
+    @Test
+    @DisplayName("parseType — 祈使动词无前缀")
+    void parseImperative() {
+        assertEquals("feat", DimensionReviewer.parseType("Add OAuth2 support"));
+        assertEquals("feat", DimensionReviewer.parseType("Adding new agent class"));
+        assertEquals("fix", DimensionReviewer.parseType("Fix structured output leaks"));
+        assertEquals("chore", DimensionReviewer.parseType("Remove deprecated method"));
+        assertEquals("chore", DimensionReviewer.parseType("Bump version to 1.14.6"));
+        assertEquals("feat", DimensionReviewer.parseType("Update CLI docs links"));
+        assertEquals("docs", DimensionReviewer.parseType("Document checkpointing behavior"));
+        assertEquals("refactor", DimensionReviewer.parseType("Refactor memory leak fix"));
+        assertEquals("revert", DimensionReviewer.parseType("Revert \"feat: old approach\""));
+    }
+
+    @Test
+    @DisplayName("parseType — 无法识别回退 feat")
     void parseFallback() {
         assertEquals("feat", DimensionReviewer.parseType("更新了登录逻辑"));
+        assertEquals("feat", DimensionReviewer.parseType("AI Agent Privacy Notice"));
         assertEquals("feat", DimensionReviewer.parseType(""));
         assertEquals("feat", DimensionReviewer.parseType(null));
     }
