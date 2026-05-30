@@ -21,6 +21,9 @@ public class GitHubProperties {
     /** GitHub App 私钥（PEM 格式完整字符串，含 BEGIN/END 边界标记） */
     private String privateKey;
 
+    /** GitHub App 私钥 PKCS#8 Base64 编码（Docker 部署推荐，避免多行 PEM 问题） */
+    private String privateKeyB64;
+
     /** Webhook HMAC-SHA256 签名密钥 */
     private String webhookSecret;
 
@@ -29,4 +32,7 @@ public class GitHubProperties {
 
     /** Personal Access Token（公开仓库零配置方案，优先级低于 Installation ID） */
     private String token;
+
+    /** 审查模式：COMMENT_ONLY / BLOCK_UNTIL_REVIEWED / BLOCK_ON_FINDINGS */
+    private String reviewMode = "COMMENT_ONLY";
 }

@@ -9,6 +9,7 @@ import io.github.spojchil.proverlap.config.GitHubProperties;
 import io.github.spojchil.proverlap.context.ContextBuilder;
 import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
+import io.github.spojchil.proverlap.model.enums.ReviewMode;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
 import io.github.spojchil.proverlap.review.prompts.SecurityPrompt;
 import io.github.spojchil.proverlap.tier.TierClassifier;
@@ -51,26 +52,71 @@ public class ReviewOrchestrator {
         String[] parts = payload.getFullName().split("/");
         String owner = parts[0];
         String repo = parts[1];
+        long instId = payload.getInstallationId();
+
+        ReviewMode mode = parseMode();
+        Long checkRunId = null;
+
+        // 创建 Check Run（非 COMMENT_ONLY 模式）
+        if (mode != ReviewMode.COMMENT_ONLY && payload.getCommitSha() != null) {
+            try {
+                checkRunId = gitHubClient.createCheckRun(owner, repo, payload.getCommitSha(), instId);
+            } catch (Exception e) {
+                log.error("Check run 创建失败: {}", e.getMessage());
+            }
+        }
 
         try {
-            String diff = gitHubClient.getPullRequestDiff(
-                    owner, repo, payload.getPrNumber(), payload.getInstallationId());
-
+            String diff = gitHubClient.getPullRequestDiff(owner, repo, payload.getPrNumber(), instId);
             if (diff == null || diff.isBlank()) {
                 log.warn("PR diff 为空: {} #{}", payload.getFullName(), payload.getPrNumber());
+                if (checkRunId != null) finishCheckRun(owner, repo, checkRunId, "neutral", "diff 为空", "PR diff 为空，跳过审查", instId);
                 return;
             }
 
             String result = doReview(diff, owner, repo, payload.getPrNumber());
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
-            gitHubClient.postReview(owner, repo, payload.getPrNumber(),
-                    result, payload.getInstallationId());
+            gitHubClient.postReview(owner, repo, payload.getPrNumber(), result, instId);
+
+            // 更新 Check Run
+            if (checkRunId != null) {
+                String conclusion = determineConclusion(mode, result);
+                finishCheckRun(owner, repo, checkRunId, conclusion,
+                        "审查完成 · " + (conclusion.equals("failure") ? "发现阻断问题" : "无阻断"),
+                        "PRoverlap 安全审查完成，详见 Review Comment", instId);
+            }
 
         } catch (Exception e) {
             log.error("审查失败: {} #{}", payload.getFullName(), payload.getPrNumber(), e);
             String errorComment = "> **PRoverlap 审查异常**\n>\n> 审查过程发生错误。\n>\n> ```\n> " + e.getMessage() + "\n> ```";
-            gitHubClient.postReview(owner, repo, payload.getPrNumber(),
-                    errorComment, payload.getInstallationId());
+            gitHubClient.postReview(owner, repo, payload.getPrNumber(), errorComment, instId);
+            if (checkRunId != null) finishCheckRun(owner, repo, checkRunId, "failure", "审查异常", "审查过程发生错误: " + e.getMessage(), instId);
+        }
+    }
+
+    private ReviewMode parseMode() {
+        try {
+            return ReviewMode.valueOf(gitHubProperties.getReviewMode());
+        } catch (IllegalArgumentException e) {
+            log.warn("无效的 ReviewMode: {}，回退为 COMMENT_ONLY", gitHubProperties.getReviewMode());
+            return ReviewMode.COMMENT_ONLY;
+        }
+    }
+
+    private String determineConclusion(ReviewMode mode, String findings) {
+        if (mode == ReviewMode.BLOCK_ON_FINDINGS && findings.contains("**阻断**")) {
+            return "failure";
+        }
+        return "success";
+    }
+
+    private void finishCheckRun(String owner, String repo, long checkRunId, String conclusion,
+                                 String title, String summary, long instId) {
+        try {
+            gitHubClient.updateCheckRun(owner, repo, checkRunId, conclusion, title,
+                    summary, instId);
+        } catch (Exception e) {
+            log.error("Check run 更新失败: {}", e.getMessage());
         }
     }
 

@@ -29,4 +29,7 @@ public class WebhookPayload {
 
     /** GitHub App 安装 ID（用于获取访问令牌） */
     private Long installationId;
+
+    /** PR head commit SHA（Check Run 需要） */
+    private String commitSha;
 }

@@ -50,6 +50,7 @@ proverlap:
     webhook-secret: ${GITHUB_WEBHOOK_SECRET}
     installation-id: ${GITHUB_INSTALLATION_ID:}
     token: ${GITHUB_TOKEN:}
+    review-mode: ${REVIEW_MODE:COMMENT_ONLY}
 
   # Tier 阈值
   tier:

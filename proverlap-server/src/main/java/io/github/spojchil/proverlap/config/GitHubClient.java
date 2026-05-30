@@ -220,6 +220,61 @@ public class GitHubClient {
      *
      * @param body Markdown 格式的审查结果文本
      */
+    // ==================== Check Runs ====================
+
+    /**
+     * 创建 Check Run（审查开始）。
+     *
+     * @param commitSha PR head commit SHA（从 Webhook payload 获取）
+     * @return check run ID，用于后续更新
+     */
+    public Long createCheckRun(String owner, String repo, String commitSha, long installationId) {
+        String token = obtainToken(installationId);
+        Map<String, Object> body = Map.of(
+                "name", "PRoverlap",
+                "head_sha", commitSha,
+                "status", "in_progress",
+                "started_at", java.time.Instant.now().toString()
+        );
+        var response = restClient.post()
+                .uri("/repos/{owner}/{repo}/check-runs", owner, repo)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Map.class);
+        Long id = ((Number) response.get("id")).longValue();
+        log.info("Check run 已创建: id={}, sha={}", id, commitSha.substring(0, 7));
+        return id;
+    }
+
+    /**
+     * 更新 Check Run 状态（审查完成）。
+     *
+     * @param conclusion 完成结论: success / failure / neutral
+     */
+    public void updateCheckRun(String owner, String repo, long checkRunId, String conclusion,
+                               String title, String summary, long installationId) {
+        String token = obtainToken(installationId);
+        Map<String, Object> body = Map.of(
+                "name", "PRoverlap",
+                "status", "completed",
+                "conclusion", conclusion,
+                "completed_at", java.time.Instant.now().toString(),
+                "output", Map.of("title", title, "summary", summary)
+        );
+        restClient.patch()
+                .uri("/repos/{owner}/{repo}/check-runs/{id}", owner, repo, checkRunId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .toBodilessEntity();
+        log.info("Check run 已更新: id={}, conclusion={}", checkRunId, conclusion);
+    }
+
+    // ==================== Review Comment ====================
+
     public void postReview(String owner, String repo, int prNumber, String body, long installationId) {
         String token = obtainToken(installationId);
         Map<String, Object> request = Map.of("event", "COMMENT", "body", body);
@@ -270,7 +325,13 @@ public class GitHubClient {
      */
     private String generateJwt() {
         try {
-            PrivateKey privateKey = parsePrivateKey(props.getPrivateKey());
+            PrivateKey privateKey;
+            if (props.getPrivateKeyB64() != null) {
+                privateKey = KeyFactory.getInstance("RSA")
+                        .generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(props.getPrivateKeyB64())));
+            } else {
+                privateKey = parsePrivateKey(props.getPrivateKey());
+            }
             long now = Instant.now().getEpochSecond();
 
             String header = "{\"alg\":\"RS256\",\"typ\":\"JWT\"}";
@@ -304,28 +365,42 @@ public class GitHubClient {
     /**
      * 解析 PEM 格式 RSA 私钥。
      * <p>
-     * 先尝试 PKCS#8（BEGIN PRIVATE KEY），失败则回退 PKCS#1（BEGIN RSA PRIVATE KEY）。
-     * PKCS#1 解析使用自建 DER 解析器，不依赖外部 JWT 库或 JDK 内部 API。
+     * 根据 PEM 头区分格式：PKCS#1（BEGIN RSA PRIVATE KEY）走自建 DER 解析，
+     * PKCS#8（BEGIN PRIVATE KEY）走标准 PKCS8EncodedKeySpec。
      */
     static PrivateKey parsePrivateKey(String pem) throws GeneralSecurityException {
+        boolean isPkcs1 = pem.contains("BEGIN RSA PRIVATE KEY");
+        boolean isPkcs8 = pem.contains("BEGIN PRIVATE KEY");
+
         String cleaned = pem
                 .replace("-----BEGIN RSA PRIVATE KEY-----", "")
                 .replace("-----END RSA PRIVATE KEY-----", "")
                 .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
-                .replace("\\n", "")     // docker env_file 单行格式
                 .replaceAll("\\s", "");
         byte[] decoded = Base64.getDecoder().decode(cleaned);
 
-        // 尝试 PKCS#8
-        try {
-            return KeyFactory.getInstance("RSA")
-                    .generatePrivate(new PKCS8EncodedKeySpec(decoded));
-        } catch (InvalidKeySpecException ignored) {
-            // PKCS#1 格式，手动解析 DER
+        // 根据 PEM 头选择解析方式
+        if (isPkcs1) {
+            try {
+                return parsePkcs1(decoded);
+            } catch (Exception e) {
+                // DER 解析失败：可能是 Runtime（格式不匹配）或 GeneralSecurity（校验失败），
+                // 两种情况下都尝试 PKCS#8 回退（处理"PKCS#1 头 + PKCS#8 内容"的误标注场景）
+                if (!isPkcs8) {
+                    return KeyFactory.getInstance("RSA")
+                            .generatePrivate(new PKCS8EncodedKeySpec(decoded));
+                }
+                throw e;
+            }
         }
 
-        // 解析 PKCS#1 DER 序列: SEQUENCE { version(0), modulus, publicExp, privateExp, prime1, prime2, exp1, exp2, coeff }
+        return KeyFactory.getInstance("RSA")
+                .generatePrivate(new PKCS8EncodedKeySpec(decoded));
+    }
+
+    /** 解析 PKCS#1 DER 序列: SEQUENCE { version, modulus, publicExp, privateExp, prime1, prime2, exp1, exp2, coeff } */
+    private static PrivateKey parsePkcs1(byte[] decoded) throws GeneralSecurityException {
         int[] pos = {0};
         readTag(decoded, pos, (byte) 0x30); // SEQUENCE
         int seqLen = readLength(decoded, pos);
@@ -339,6 +414,11 @@ public class GitHubClient {
             System.arraycopy(decoded, pos[0], val, 0, len);
             ints[i] = new java.math.BigInteger(+1, val); // positive
             pos[0] += len;
+        }
+
+        // 验证 PKCS#1 结构合理性: version==0, public exponent 应在合理范围
+        if (ints[0].intValue() != 0 || ints[2].bitLength() > 64) {
+            throw new GeneralSecurityException("PKCS#1 结构校验失败，可能为非 PKCS#1 数据");
         }
 
         RSAPrivateCrtKeySpec spec = new RSAPrivateCrtKeySpec(
