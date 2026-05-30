@@ -1,0 +1,246 @@
+package io.github.spojchil.proverlap.review;
+
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import io.github.spojchil.proverlap.model.dto.CrossValidationResult;
+import io.github.spojchil.proverlap.model.dto.Finding;
+import io.github.spojchil.proverlap.model.enums.TierLevel;
+import io.github.spojchil.proverlap.review.prompts.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+
+/**
+ * 维度 × 模型调度器。
+ * <p>
+ * 解析 PR 标题获取类型（feat/fix/perf/...），查矩阵激活对应维度，
+ * 按维度独立审查，双模型 CV 用于安全+正确性，单模型用于次要维度。
+ */
+@Slf4j
+@Service
+public class DimensionReviewer {
+
+    @Qualifier("modelA")
+    private final ChatModel modelA;
+    @Qualifier("modelB")
+    private final ChatModel modelB;
+    @Qualifier("reviewExecutor")
+    private final Executor executor;
+    private final FindingParser findingParser;
+    private final CrossValidator crossValidator;
+    private final CrossValidationCommentFormatter commentFormatter;
+    private final SecurityPrompt securityPrompt;
+    private final CorrectnessPrompt correctnessPrompt;
+    private final DesignPrompt designPrompt;
+    private final PerformancePrompt performancePrompt;
+    private final MaintainabilityPrompt maintainabilityPrompt;
+    private final TestCoveragePrompt testCoveragePrompt;
+
+    private static final Pattern CONVENTIONAL_TYPE = Pattern.compile(
+            "^(feat|fix|perf|refactor|docs|style|chore|test|build|ci|revert)[\\(!:]");
+
+    /** 维度 × 模型矩阵：PR 类型 → 维度任务列表 */
+    private final Map<String, List<DimensionTask>> matrix;
+
+    public DimensionReviewer(@Qualifier("modelA") ChatModel modelA,
+                             @Qualifier("modelB") ChatModel modelB,
+                             @Qualifier("reviewExecutor") Executor executor,
+                             FindingParser findingParser,
+                             CrossValidator crossValidator,
+                             CrossValidationCommentFormatter commentFormatter,
+                             SecurityPrompt securityPrompt,
+                             CorrectnessPrompt correctnessPrompt,
+                             DesignPrompt designPrompt,
+                             PerformancePrompt performancePrompt,
+                             MaintainabilityPrompt maintainabilityPrompt,
+                             TestCoveragePrompt testCoveragePrompt) {
+        this.modelA = modelA;
+        this.modelB = modelB;
+        this.executor = executor;
+        this.findingParser = findingParser;
+        this.crossValidator = crossValidator;
+        this.commentFormatter = commentFormatter;
+        this.securityPrompt = securityPrompt;
+        this.correctnessPrompt = correctnessPrompt;
+        this.designPrompt = designPrompt;
+        this.performancePrompt = performancePrompt;
+        this.maintainabilityPrompt = maintainabilityPrompt;
+        this.testCoveragePrompt = testCoveragePrompt;
+        this.matrix = buildMatrix();
+    }
+
+    /**
+     * 按 PR 类型和 Tier 执行多维度审查。
+     *
+     * @param prTitle  PR 标题（如 "feat: 新增 OAuth2 登录"）
+     * @param context  审查上下文（规范文件 + 完整文件 + diff）
+     * @param tier     Tier 分级
+     * @return 各维度审查结果列表
+     */
+    public List<DimensionResult> review(String prTitle, String context, TierLevel tier) {
+        String prType = parseType(prTitle);
+        List<DimensionTask> tasks = selectTasks(prType, tier);
+
+        log.info("PR 类型: {} ({}), Tier: {}, 激活维度: {}", prTitle, prType, tier.getCode(),
+                tasks.stream().map(DimensionTask::dimension).toList());
+
+        List<CompletableFuture<DimensionResult>> futures = new ArrayList<>();
+
+        for (DimensionTask task : tasks) {
+            if (task.modelCount() == 2) {
+                futures.add(dualModelReview(task, context));
+            } else {
+                futures.add(singleModelReview(task, context));
+            }
+        }
+
+        return futures.stream().map(f -> {
+            try {
+                return f.get(120, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.error("维度 {} 审查超时或失败: {}", taskDimension(f), e.getMessage());
+                return DimensionResult.of(taskDimension(f), "审查超时", false);
+            }
+        }).toList();
+    }
+
+    // ==================== 内部方法 ====================
+
+    /** 单模型审查 */
+    private CompletableFuture<DimensionResult> singleModelReview(DimensionTask task, String context) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                log.info("单模型审查: {}", task.dimension());
+                String raw = callModel(modelA, task.prompt(), context);
+                return DimensionResult.of(task.dimension(),
+                        "## " + task.dimension() + "（单模型 · 需复核）\n\n" + raw, false);
+            } catch (Exception e) {
+                log.error("单模型审查失败({}): {}", task.dimension(), e.getMessage());
+                return DimensionResult.of(task.dimension(), "审查失败: " + e.getMessage(), false);
+            }
+        }, executor);
+    }
+
+    /** 双模型交叉验证审查 */
+    private CompletableFuture<DimensionResult> dualModelReview(DimensionTask task, String context) {
+        CompletableFuture<List<Finding>> fa = CompletableFuture.supplyAsync(
+                () -> callAndParse(modelA, task.prompt(), context, "modelA"), executor);
+        CompletableFuture<List<Finding>> fb = CompletableFuture.supplyAsync(
+                () -> callAndParse(modelB, task.prompt(), context, "modelB"), executor);
+
+        return fa.thenCombine(fb, (findingsA, findingsB) -> {
+            CrossValidationResult cross = crossValidator.compare(findingsA, findingsB);
+            String formatted = commentFormatter.format(cross);
+            return DimensionResult.of(task.dimension(), formatted, true);
+        }).exceptionally(e -> {
+            log.error("双模型审查失败({}): {}", task.dimension(), e.getMessage());
+            return DimensionResult.of(task.dimension(), "审查失败: " + e.getMessage(), false);
+        });
+    }
+
+    /** 调用模型 + 解析 JSON */
+    private List<Finding> callAndParse(ChatModel model, ReviewPrompt prompt, String context, String modelName) {
+        try {
+            String raw = callModel(model, prompt, context);
+            return findingParser.parse(raw, modelName);
+        } catch (Exception e) {
+            log.error("模型调用失败({}): {}", modelName, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /** 调用单个 LLM */
+    private String callModel(ChatModel model, ReviewPrompt prompt, String context) {
+        ChatResponse response = model.chat(List.of(
+                SystemMessage.from(prompt.system()),
+                UserMessage.from(context)));
+        return response.aiMessage().text();
+    }
+
+    /** 解析 PR 标题中的 Conventional Commits 类型 */
+    static String parseType(String prTitle) {
+        if (prTitle == null || prTitle.isBlank()) return "feat";
+        Matcher m = CONVENTIONAL_TYPE.matcher(prTitle.trim());
+        return m.find() ? m.group(1) : "feat";
+    }
+
+    /** 按 PR 类型 + Tier 选择维度任务 */
+    private List<DimensionTask> selectTasks(String prType, TierLevel tier) {
+        List<DimensionTask> tasks = matrix.getOrDefault(prType, matrix.get("feat"));
+
+        if (tier == TierLevel.TIER_1) {
+            // T1: 只保留第一个单模型维度
+            return tasks.stream()
+                    .filter(t -> t.modelCount() == 1)
+                    .limit(1)
+                    .toList();
+        }
+
+        if (tier == TierLevel.TIER_2) {
+            // T2: 跳过设计维度（最高层，T3 才有）
+            return tasks.stream()
+                    .filter(t -> !"design".equals(t.dimension()))
+                    .toList();
+        }
+
+        return tasks; // T3: 全维度
+    }
+
+    /** 从 CompletableFuture 推测维度名（用于异常日志） */
+    private static String taskDimension(CompletableFuture<?> future) {
+        return "unknown";
+    }
+
+    // ==================== 矩阵定义 ====================
+
+    private Map<String, List<DimensionTask>> buildMatrix() {
+        return Map.of(
+                "feat", List.of(
+                        DimensionTask.of("design", designPrompt, 1),
+                        DimensionTask.of("correctness", correctnessPrompt, 2),
+                        DimensionTask.of("security", securityPrompt, 2),
+                        DimensionTask.of("maintainability", maintainabilityPrompt, 1),
+                        DimensionTask.of("test", testCoveragePrompt, 1)),
+                "fix", List.of(
+                        DimensionTask.of("correctness", correctnessPrompt, 2),
+                        DimensionTask.of("security", securityPrompt, 2)),
+                "perf", List.of(
+                        DimensionTask.of("correctness", correctnessPrompt, 2),
+                        DimensionTask.of("performance", performancePrompt, 1)),
+                "refactor", List.of(
+                        DimensionTask.of("correctness", correctnessPrompt, 2),
+                        DimensionTask.of("maintainability", maintainabilityPrompt, 1)),
+                "docs", List.of(),
+                "style", List.of(),
+                "chore", List.of(),
+                "test", List.of(
+                        DimensionTask.of("test", testCoveragePrompt, 1)),
+                "build", List.of(),
+                "ci", List.of());
+    }
+
+    /** 维度任务：维度名 + Prompt + 模型数量 */
+    public record DimensionTask(String dimension, ReviewPrompt prompt, int modelCount) {
+        static DimensionTask of(String dimension, ReviewPrompt prompt, int modelCount) {
+            return new DimensionTask(dimension, prompt, modelCount);
+        }
+    }
+
+    /** 维度审查结果 */
+    public record DimensionResult(String dimension, String findingsText, boolean crossValidated) {
+        public static DimensionResult of(String dimension, String findingsText, boolean crossValidated) {
+            return new DimensionResult(dimension, findingsText, crossValidated);
+        }
+    }
+}

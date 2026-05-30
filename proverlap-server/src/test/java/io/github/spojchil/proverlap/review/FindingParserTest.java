@@ -9,9 +9,9 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * FindingParser Markdown 解析单元测试。
+ * FindingParser JSON 解析单元测试。
  */
-@DisplayName("FindingParser Markdown 解析单元测试")
+@DisplayName("FindingParser JSON 解析单元测试")
 class FindingParserTest {
 
     private final FindingParser parser = new FindingParser();
@@ -19,12 +19,16 @@ class FindingParserTest {
     @Test
     @DisplayName("parse — 解析单个阻断发现")
     void parseSingleBlocking() {
-        String text = """
-                > **阻断** `src/AuthService.java` L3 — 硬编码敏感密钥
-                > ADMIN_KEY 被直接赋值为明文密钥
-                > 建议: 将密钥移出代码""";
+        String json = """
+                {
+                  "findings": [
+                    {"severity":"阻断","file":"src/AuthService.java","line":3,
+                     "title":"硬编码敏感密钥","description":"ADMIN_KEY 被硬编码","suggestion":"改用环境变量"}
+                  ],
+                  "summary": "发现 1 个安全问题"
+                }""";
 
-        List<Finding> findings = parser.parse(text, "modelA");
+        List<Finding> findings = parser.parse(json, "modelA");
 
         assertEquals(1, findings.size());
         Finding f = findings.get(0);
@@ -33,23 +37,23 @@ class FindingParserTest {
         assertEquals(3, f.getLine());
         assertEquals("硬编码敏感密钥", f.getTitle());
         assertTrue(f.getDescription().contains("ADMIN_KEY"));
-        assertTrue(f.getSuggestion().contains("将密钥移出代码"));
+        assertTrue(f.getSuggestion().contains("环境变量"));
         assertEquals("modelA", f.getModelSource());
     }
 
     @Test
     @DisplayName("parse — 解析多个发现")
     void parseMultipleFindings() {
-        String text = """
-                > **阻断** `src/Foo.java` L1 — 问题一
-                > 描述一
-                > 建议: 修复一
+        String json = """
+                {
+                  "findings": [
+                    {"severity":"阻断","file":"src/Foo.java","line":1,"title":"问题一","description":"描述一","suggestion":"修复一"},
+                    {"severity":"警告","file":"src/Bar.java","line":2,"title":"问题二","description":"描述二","suggestion":"修复二"}
+                  ],
+                  "summary": "发现 2 个问题"
+                }""";
 
-                > **警告** `src/Bar.java` L2 — 问题二
-                > 描述二
-                > 建议: 修复二""";
-
-        List<Finding> findings = parser.parse(text, "modelB");
+        List<Finding> findings = parser.parse(json, "modelB");
 
         assertEquals(2, findings.size());
         assertEquals("阻断", findings.get(0).getSeverity());
@@ -59,33 +63,43 @@ class FindingParserTest {
     }
 
     @Test
-    @DisplayName("parse — 无发现时返回空列表")
-    void parseEmpty() {
-        List<Finding> findings = parser.parse("未发现安全问题。", "modelA");
+    @DisplayName("parse — 空 findings 数组返回空列表")
+    void parseEmptyFindings() {
+        String json = """
+                {
+                  "findings": [],
+                  "summary": "未发现安全问题"
+                }""";
+
+        List<Finding> findings = parser.parse(json, "modelA");
         assertTrue(findings.isEmpty());
     }
 
     @Test
-    @DisplayName("parse — 缺少严重度标记的行被跳过")
-    void parseMalformedLine() {
+    @DisplayName("parse — LLM 包裹 markdown 代码块仍可解析")
+    void parseWithMarkdownWrapper() {
         String text = """
-                > 这不是一个发现
-                > **阻断** `src/Foo.java` L1 — 正常发现
-                > 描述""";
+                以下是审查结果：
+
+                ```json
+                {
+                  "findings": [
+                    {"severity":"警告","file":"src/Foo.java","line":1,"title":"标的","description":"描述","suggestion":"建议"}
+                  ],
+                  "summary": ""
+                }
+                ```""";
 
         List<Finding> findings = parser.parse(text, "modelA");
         assertEquals(1, findings.size());
-        assertEquals("正常发现", findings.get(0).getTitle());
+        assertEquals("标的", findings.get(0).getTitle());
     }
 
     @Test
-    @DisplayName("parse — 仅标题无描述时 title 和 description 相同")
-    void parseTitleOnly() {
-        String text = "> **建议** `src/Baz.java` L5 — 变量命名不规范";
-
-        List<Finding> findings = parser.parse(text, "modelA");
-        assertEquals(1, findings.size());
-        assertEquals("变量命名不规范", findings.get(0).getTitle());
+    @DisplayName("parse — 非 JSON 文本返回空列表")
+    void parseInvalidJson() {
+        List<Finding> findings = parser.parse("未发现安全问题。", "modelA");
+        assertTrue(findings.isEmpty());
     }
 
     @Test

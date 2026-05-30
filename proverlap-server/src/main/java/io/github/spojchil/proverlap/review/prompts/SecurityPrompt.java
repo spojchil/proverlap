@@ -9,8 +9,9 @@ import org.springframework.stereotype.Component;
  * User Prompt 为 diff 文本，由调用方拼接。
  */
 @Component
-public class SecurityPrompt {
+public class SecurityPrompt implements ReviewPrompt {
 
+    @Override
     public String system() {
         return """
                 你是资深代码安全审查专家。请审查以下 PR diff 中的安全问题。
@@ -24,15 +25,24 @@ public class SecurityPrompt {
                 - 不安全的加密算法（MD5/SHA1 用于密码、DES/RC4）
 
                 ## 输出格式
-                对每个发现的问题，按以下格式输出：
+                严格输出 JSON，不要输出其他文字：
 
-                > **{严重度}** `{文件}` L{行号} — {标题}
-                > {详细描述}
-                > 建议: {修复建议}
+                {
+                  "findings": [
+                    {
+                      "severity": "阻断",
+                      "file": "src/AuthService.java",
+                      "line": 42,
+                      "title": "密码明文存储",
+                      "description": "用户密码以明文形式写入日志文件",
+                      "suggestion": "对敏感字段脱敏处理，使用 log.debug 或移除日志"
+                    }
+                  ],
+                  "summary": "本文件发现 2 个安全问题，其中 1 个高危"
+                }
 
                 严重度取值: 阻断 / 警告 / 建议
-
-                如果没有发现问题，输出: ✅ 未发现安全问题。
+                line 为整数（行号），无问题时 findings 为空数组。
 
                 只审查安全问题，不要提代码风格、命名、性能优化建议。""";
     }
