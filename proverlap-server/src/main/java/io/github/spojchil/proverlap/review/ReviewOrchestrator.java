@@ -77,13 +77,19 @@ public class ReviewOrchestrator {
             String result = doMultiDimensionReview(diff, payload.getPrTitle(),
                     owner, repo, payload.getPrNumber());
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
-            gitHubClient.postReview(owner, repo, payload.getPrNumber(), result, instId);
+
+            // 提取摘要行作为评论，完整报告放入 Check Run
+            String summary = extractSummary(result);
+            String comment = summary
+                    + "\n\n> 详细信息见 [Checks](https://github.com/" + payload.getFullName()
+                    + "/pull/" + payload.getPrNumber() + "/checks) 标签页";
+            gitHubClient.postReview(owner, repo, payload.getPrNumber(), comment, instId);
 
             if (checkRunId != null) {
                 String conclusion = determineConclusion(mode, result);
                 finishCheckRun(owner, repo, checkRunId, conclusion,
                         "审查完成 · " + (conclusion.equals("failure") ? "发现阻断问题" : "无阻断"),
-                        "PRoverlap 审查完成，详见 Review Comment", instId);
+                        result, instId);
             }
 
         } catch (Exception e) {
@@ -174,4 +180,17 @@ public class ReviewOrchestrator {
     private static int countLines(String diff) {
         return (int) diff.lines().count();
     }
+
+    /** 从聚合结果中提取摘要（前 3 行） */
+    private static String extractSummary(String result) {
+        if (result == null || result.isBlank()) return "审查完成";
+        String[] lines = result.split("\n");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(3, lines.length); i++) {
+            String trimmed = lines[i].trim();
+            if (!trimmed.isEmpty()) sb.append(trimmed).append("\n");
+        }
+        return sb.toString().trim();
+    }
 }
+

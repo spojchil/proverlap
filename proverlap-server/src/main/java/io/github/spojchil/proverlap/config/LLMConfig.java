@@ -45,7 +45,7 @@ public class LLMConfig {
                 .apiKey(cfg.getApiKey())
                 .modelName(cfg.getModelName())
                 .temperature(0.3)
-                .maxTokens(4096)
+                .maxTokens(8192)
                 .timeout(Duration.ofSeconds(120))
                 .build();
     }
@@ -63,7 +63,7 @@ public class LLMConfig {
                 .apiKey(cfg.getApiKey())
                 .modelName(cfg.getModelName())
                 .temperature(0.3)
-                .maxTokens(4096)
+                .maxTokens(8192)
                 .timeout(Duration.ofSeconds(120))
                 .build();
     }

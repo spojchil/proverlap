@@ -144,8 +144,8 @@ public class DimensionReviewer {
                 log.info("单模型审查: {}", task.dimension());
                 String raw = callModel(modelA, task.prompt(), context);
                 List<Finding> findings = findingParser.parse(raw, "modelA");
-                return DimensionResult.of(task.dimension(),
-                        "## " + task.dimension() + "（单模型 · 需复核）\n\n" + raw, false, findings);
+                String formatted = formatSingleModelFindings(task.dimension(), findings, raw);
+                return DimensionResult.of(task.dimension(), formatted, false, findings);
             } catch (Exception e) {
                 log.error("单模型审查失败({}): {}", task.dimension(), e.getMessage());
                 return DimensionResult.of(task.dimension(), "审查失败: " + e.getMessage(), false);
@@ -230,6 +230,31 @@ public class DimensionReviewer {
         }
 
         return tasks; // T3: 全维度
+    }
+
+    /** 格式化单模型审查结果为 Markdown */
+    private static String formatSingleModelFindings(String dimension, List<Finding> findings, String raw) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## ").append(dimension).append("（单模型 · 需复核）\n\n");
+
+        if (findings.isEmpty()) {
+            // 尝试从 raw JSON 提取 summary
+            sb.append("未发现 ").append(dimension).append(" 相关问题。\n");
+            return sb.toString();
+        }
+
+        sb.append(findings.size()).append(" 个发现：\n\n");
+        for (Finding f : findings) {
+            sb.append("> **").append(f.getSeverity()).append("** `")
+                    .append(f.getFile()).append("` L").append(f.getLine())
+                    .append(" — ").append(f.getTitle()).append("\n");
+            sb.append("> ").append(f.getDescription()).append("\n");
+            if (f.getSuggestion() != null && !f.getSuggestion().isBlank()) {
+                sb.append("> 建议: ").append(f.getSuggestion()).append("\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     /** 从 CompletableFuture 推测维度名（用于异常日志） */

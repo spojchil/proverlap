@@ -47,6 +47,7 @@ proverlap:
   github:
     app-id: ${GITHUB_APP_ID}
     private-key: ${GITHUB_PRIVATE_KEY}
+    private-key-b64: ${GITHUB_PRIVATE_KEY_B64:}
     webhook-secret: ${GITHUB_WEBHOOK_SECRET}
     installation-id: ${GITHUB_INSTALLATION_ID:}
     token: ${GITHUB_TOKEN:}
