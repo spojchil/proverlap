@@ -126,12 +126,38 @@ public class GitHubClient {
     }
 
     /**
-     * 读取仓库中指定文件的内容。
+     * 读取仓库中指定文件的内容（App 安装令牌认证）。
      *
      * @return 文件内容文本，文件不存在时返回 {@code null}
      */
     public String getRepoFile(String owner, String repo, String path, long installationId) {
         String token = obtainToken(installationId);
+        return fetchRepoFile(owner, repo, path, token);
+    }
+
+    /**
+     * 读取仓库中指定文件的内容（API 模式，2 通道认证）。
+     *
+     * @return 文件内容文本，文件不存在时返回 {@code null}
+     */
+    public String getRepoFile(String owner, String repo, String path) {
+        // 渠道 1：Installation Token
+        if (props.getInstallationId() != null) {
+            try {
+                return getRepoFile(owner, repo, path, props.getInstallationId());
+            } catch (Exception e) {
+                log.warn("Installation Token 读取文件失败: {}", e.getMessage());
+            }
+        }
+        // 渠道 2：PAT
+        if (props.getToken() != null && !props.getToken().isBlank()) {
+            return fetchRepoFile(owner, repo, path, props.getToken());
+        }
+        log.warn("未配置 GitHub 认证，无法读取文件: {}/{}", repo, path);
+        return null;
+    }
+
+    private String fetchRepoFile(String owner, String repo, String path, String token) {
         try {
             return restClient.get()
                     .uri("/repos/{owner}/{repo}/contents/{path}", owner, repo, path)
