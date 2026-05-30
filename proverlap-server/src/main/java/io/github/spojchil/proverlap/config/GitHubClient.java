@@ -220,6 +220,61 @@ public class GitHubClient {
      *
      * @param body Markdown 格式的审查结果文本
      */
+    // ==================== Check Runs ====================
+
+    /**
+     * 创建 Check Run（审查开始）。
+     *
+     * @param commitSha PR head commit SHA（从 Webhook payload 获取）
+     * @return check run ID，用于后续更新
+     */
+    public Long createCheckRun(String owner, String repo, String commitSha, long installationId) {
+        String token = obtainToken(installationId);
+        Map<String, Object> body = Map.of(
+                "name", "PRoverlap",
+                "head_sha", commitSha,
+                "status", "in_progress",
+                "started_at", java.time.Instant.now().toString()
+        );
+        var response = restClient.post()
+                .uri("/repos/{owner}/{repo}/check-runs", owner, repo)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Map.class);
+        Long id = ((Number) response.get("id")).longValue();
+        log.info("Check run 已创建: id={}, sha={}", id, commitSha.substring(0, 7));
+        return id;
+    }
+
+    /**
+     * 更新 Check Run 状态（审查完成）。
+     *
+     * @param conclusion 完成结论: success / failure / neutral
+     */
+    public void updateCheckRun(String owner, String repo, long checkRunId, String conclusion,
+                               String title, String summary, long installationId) {
+        String token = obtainToken(installationId);
+        Map<String, Object> body = Map.of(
+                "name", "PRoverlap",
+                "status", "completed",
+                "conclusion", conclusion,
+                "completed_at", java.time.Instant.now().toString(),
+                "output", Map.of("title", title, "summary", summary)
+        );
+        restClient.patch()
+                .uri("/repos/{owner}/{repo}/check-runs/{id}", owner, repo, checkRunId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .toBodilessEntity();
+        log.info("Check run 已更新: id={}, conclusion={}", checkRunId, conclusion);
+    }
+
+    // ==================== Review Comment ====================
+
     public void postReview(String owner, String repo, int prNumber, String body, long installationId) {
         String token = obtainToken(installationId);
         Map<String, Object> request = Map.of("event", "COMMENT", "body", body);

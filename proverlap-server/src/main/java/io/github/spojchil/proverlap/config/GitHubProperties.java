@@ -29,4 +29,7 @@ public class GitHubProperties {
 
     /** Personal Access Token（公开仓库零配置方案，优先级低于 Installation ID） */
     private String token;
+
+    /** 审查模式：COMMENT_ONLY / BLOCK_UNTIL_REVIEWED / BLOCK_ON_FINDINGS */
+    private String reviewMode = "COMMENT_ONLY";
 }

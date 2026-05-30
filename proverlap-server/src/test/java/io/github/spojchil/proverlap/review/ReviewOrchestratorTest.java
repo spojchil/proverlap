@@ -110,6 +110,60 @@ class ReviewOrchestratorTest {
                 contains("PRoverlap 审查异常"), eq(INSTALLATION_ID));
     }
 
+    // ==================== Check Run 模式 ====================
+
+    @Test
+    @DisplayName("review — BLOCK_UNTIL_REVIEWED：创建 check run 并在审查完成后标记 success")
+    void blockUntilReviewed() {
+        gitHubProperties.setReviewMode("BLOCK_UNTIL_REVIEWED");
+        when(gitHubClient.createCheckRun(eq(OWNER), eq(REPO), anyString(), eq(INSTALLATION_ID)))
+                .thenReturn(1L);
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
+                .thenReturn(DIFF);
+        doReturn(ChatResponse.builder()
+                .aiMessage(AiMessage.from("审查通过，无问题"))
+                .build()).when(modelA).chat(anyList());
+
+        orchestrator.review(buildPayload());
+
+        verify(gitHubClient).createCheckRun(eq(OWNER), eq(REPO), anyString(), eq(INSTALLATION_ID));
+        verify(gitHubClient).updateCheckRun(eq(OWNER), eq(REPO), eq(1L),
+                eq("success"), anyString(), anyString(), eq(INSTALLATION_ID));
+    }
+
+    @Test
+    @DisplayName("review — BLOCK_ON_FINDINGS + 有阻断关键词：check run 标记 failure")
+    void blockOnFindingsWithBlocking() {
+        gitHubProperties.setReviewMode("BLOCK_ON_FINDINGS");
+        when(gitHubClient.createCheckRun(eq(OWNER), eq(REPO), anyString(), eq(INSTALLATION_ID)))
+                .thenReturn(1L);
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
+                .thenReturn(DIFF);
+        doReturn(ChatResponse.builder()
+                .aiMessage(AiMessage.from("> **阻断** 硬编码密钥"))
+                .build()).when(modelA).chat(anyList());
+
+        orchestrator.review(buildPayload());
+
+        verify(gitHubClient).updateCheckRun(eq(OWNER), eq(REPO), eq(1L),
+                eq("failure"), anyString(), anyString(), eq(INSTALLATION_ID));
+    }
+
+    @Test
+    @DisplayName("review — 审查异常时 BLOCK_UNTIL_REVIEWED 模式也标记 failure")
+    void blockModeOnException() {
+        gitHubProperties.setReviewMode("BLOCK_UNTIL_REVIEWED");
+        when(gitHubClient.createCheckRun(eq(OWNER), eq(REPO), anyString(), eq(INSTALLATION_ID)))
+                .thenReturn(1L);
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER, INSTALLATION_ID))
+                .thenThrow(new RuntimeException("API 超时"));
+
+        orchestrator.review(buildPayload());
+
+        verify(gitHubClient).updateCheckRun(eq(OWNER), eq(REPO), eq(1L),
+                eq("failure"), anyString(), anyString(), eq(INSTALLATION_ID));
+    }
+
     // ==================== API 同步模式 ====================
 
     @Test
@@ -164,6 +218,7 @@ class ReviewOrchestratorTest {
                 .fullName(OWNER + "/" + REPO)
                 .prNumber(PR_NUMBER)
                 .installationId(INSTALLATION_ID)
+                .commitSha("abc123def456")
                 .build();
     }
 }

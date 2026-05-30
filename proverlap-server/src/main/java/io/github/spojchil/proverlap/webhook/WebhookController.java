@@ -76,6 +76,7 @@ public class WebhookController {
                     .prNumber(pr.path("number").asInt())
                     .fullName(repo.path("full_name").asText())
                     .installationId(installation.path("id").asLong())
+                    .commitSha(pr.path("head").path("sha").asText())
                     .build();
 
             log.info("收到 PR Webhook: {} #{}, action={}",
