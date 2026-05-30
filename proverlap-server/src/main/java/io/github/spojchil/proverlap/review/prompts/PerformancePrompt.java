@@ -37,11 +37,11 @@ public class PerformancePrompt implements ReviewPrompt {
                       "suggestion": "使用 IN 查询批量加载关联数据"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 不要在无 profiling 数据时建议微优化。只指出明显低效的模式。""";
     }

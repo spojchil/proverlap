@@ -21,8 +21,8 @@ public class ModelProperties {
     /** 模型 B — 交叉验证模型（如 Claude / GPT / Gemini） */
     private ModelConfig modelB = new ModelConfig();
 
-    /** 最大输出 token 数，默认 16384 */
-    private int maxTokens = 16384;
+    /** 最大输出 token 数，默认 32768 */
+    private int maxTokens = 32768;
 
     @Data
     public static class ModelConfig {

@@ -34,7 +34,7 @@ mybatis-plus:
 # LLM 模型配置（可插拔，按需替换提供商）
 proverlap:
   models:
-    max-tokens: 16384
+    max-tokens: 32768
     model-a:
       base-url: ${MODEL_A_BASE_URL}
       api-key: ${MODEL_A_API_KEY}

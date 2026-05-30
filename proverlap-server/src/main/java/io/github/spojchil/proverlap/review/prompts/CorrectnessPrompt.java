@@ -39,11 +39,11 @@ public class CorrectnessPrompt implements ReviewPrompt {
                       "suggestion": "添加 null 检查或使用 Optional"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 只审查行为是否"对"或"错"——不审代码是否写得好、是否优雅。""";
     }

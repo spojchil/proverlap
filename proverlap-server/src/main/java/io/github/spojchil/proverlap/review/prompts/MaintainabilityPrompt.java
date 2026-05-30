@@ -37,11 +37,11 @@ public class MaintainabilityPrompt implements ReviewPrompt {
                       "suggestion": "拆分为 validateOrder / deductStock / sendNotification 三个方法"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 不要审查格式/缩进问题（交给 linter），不要提性能优化建议。""";
     }

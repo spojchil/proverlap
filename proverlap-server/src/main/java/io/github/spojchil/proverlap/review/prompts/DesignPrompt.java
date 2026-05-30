@@ -36,11 +36,11 @@ public class DesignPrompt implements ReviewPrompt {
                       "suggestion": "将请求参数在 Controller 层提取后传入 Service 方法"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 只审查架构和设计问题——不提性能、安全、命名风格。""";
     }

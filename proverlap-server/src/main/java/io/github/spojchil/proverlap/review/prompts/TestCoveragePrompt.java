@@ -36,11 +36,11 @@ public class TestCoveragePrompt implements ReviewPrompt {
                       "suggestion": "添加测试覆盖正常注册、重复注册、参数为空三种场景"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 不要建议"所有代码都要有测试"这类无意义的废话。只指出真正重要的缺失。
                 不要追求覆盖率数字，关注关键路径是否被验证。""";
