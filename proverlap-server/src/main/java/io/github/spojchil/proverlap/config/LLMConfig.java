@@ -44,9 +44,9 @@ public class LLMConfig {
                 .baseUrl(cfg.getBaseUrl())
                 .apiKey(cfg.getApiKey())
                 .modelName(cfg.getModelName())
-                .temperature(0.3)
+                .temperature(modelProperties.getTemperature())
                 .maxTokens(modelProperties.getMaxTokens())
-                .timeout(Duration.ofSeconds(120))
+                .timeout(Duration.ofSeconds(modelProperties.getTimeoutSeconds()))
                 .build();
     }
 
@@ -62,9 +62,9 @@ public class LLMConfig {
                 .baseUrl(cfg.getBaseUrl())
                 .apiKey(cfg.getApiKey())
                 .modelName(cfg.getModelName())
-                .temperature(0.3)
+                .temperature(modelProperties.getTemperature())
                 .maxTokens(modelProperties.getMaxTokens())
-                .timeout(Duration.ofSeconds(120))
+                .timeout(Duration.ofSeconds(modelProperties.getTimeoutSeconds()))
                 .build();
     }
 }

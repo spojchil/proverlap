@@ -2,6 +2,7 @@ package io.github.spojchil.proverlap.review;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import io.github.spojchil.proverlap.config.ModelProperties;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
 import io.github.spojchil.proverlap.review.prompts.*;
@@ -45,6 +46,7 @@ class DimensionReviewerTest {
     private final PerformancePrompt performancePrompt = new PerformancePrompt();
     private final MaintainabilityPrompt maintainabilityPrompt = new MaintainabilityPrompt();
     private final TestCoveragePrompt testCoveragePrompt = new TestCoveragePrompt();
+    private final ModelProperties modelProperties = new ModelProperties();
 
     private DimensionReviewer reviewer;
     private static final String CONTEXT = "## 变更文件\n```java\ntest\n```";
@@ -52,7 +54,7 @@ class DimensionReviewerTest {
 
     @BeforeEach
     void setUp() {
-        reviewer = new DimensionReviewer(modelA, modelB, executor,
+        reviewer = new DimensionReviewer(modelA, modelB, executor, modelProperties,
                 findingParser, crossValidator, commentFormatter,
                 securityPrompt, correctnessPrompt, designPrompt,
                 performancePrompt, maintainabilityPrompt, testCoveragePrompt);

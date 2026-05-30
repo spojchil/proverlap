@@ -4,6 +4,7 @@ import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import io.github.spojchil.proverlap.config.ModelProperties;
 import io.github.spojchil.proverlap.model.dto.CrossValidationResult;
 import io.github.spojchil.proverlap.model.dto.Finding;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
@@ -37,6 +38,7 @@ public class DimensionReviewer {
     private final ChatModel modelB;
     @Qualifier("reviewExecutor")
     private final Executor executor;
+    private final ModelProperties modelProperties;
     private final FindingParser findingParser;
     private final CrossValidator crossValidator;
     private final CrossValidationCommentFormatter commentFormatter;
@@ -76,6 +78,7 @@ public class DimensionReviewer {
     public DimensionReviewer(@Qualifier("modelA") ChatModel modelA,
                              @Qualifier("modelB") ChatModel modelB,
                              @Qualifier("reviewExecutor") Executor executor,
+                             ModelProperties modelProperties,
                              FindingParser findingParser,
                              CrossValidator crossValidator,
                              CrossValidationCommentFormatter commentFormatter,
@@ -88,6 +91,7 @@ public class DimensionReviewer {
         this.modelA = modelA;
         this.modelB = modelB;
         this.executor = executor;
+        this.modelProperties = modelProperties;
         this.findingParser = findingParser;
         this.crossValidator = crossValidator;
         this.commentFormatter = commentFormatter;
@@ -127,7 +131,7 @@ public class DimensionReviewer {
 
         return futures.stream().map(f -> {
             try {
-                return f.get(120, TimeUnit.SECONDS);
+                return f.get(modelProperties.getTimeoutSeconds(), TimeUnit.SECONDS);
             } catch (Exception e) {
                 log.error("维度 {} 审查超时或失败: {}", taskDimension(f), e.getMessage());
                 return DimensionResult.of(taskDimension(f), "审查超时", false);

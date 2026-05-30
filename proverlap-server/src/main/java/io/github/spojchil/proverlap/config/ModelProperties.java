@@ -24,6 +24,12 @@ public class ModelProperties {
     /** 最大输出 token 数，默认 32768 */
     private int maxTokens = 32768;
 
+    /** LLM 请求温度，默认 0.3 */
+    private double temperature = 0.3;
+
+    /** LLM 请求超时（秒），默认 180 */
+    private int timeoutSeconds = 180;
+
     @Data
     public static class ModelConfig {
         private String baseUrl;
