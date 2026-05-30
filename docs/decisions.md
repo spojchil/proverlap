@@ -22,7 +22,7 @@
 **决策**：LangChain4j 1.15（BOM 管理版本）+ open-ai 兼容模块。
 **原因**：
 
-- LangChain4j 的 ChatLanguageModel 接口抽象屏蔽了不同提供商的差异。
+- LangChain4j 的 ChatModel 接口抽象屏蔽了不同提供商的差异。
 - 所有兼容 OpenAI 接口格式的模型（DeepSeek、智谱、Qwen 等）共用一个 `open-ai` 模块即可。
 - 1.15 是最新稳定版，社区活跃度高于 Spring AI。
 - 放弃 Spring AI：对国产模型适配不如 LangChain4j 社区模块丰富。
