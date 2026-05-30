@@ -6,41 +6,76 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
+import io.github.spojchil.proverlap.config.ModelProperties;
 import io.github.spojchil.proverlap.context.ContextBuilder;
+import io.github.spojchil.proverlap.model.dto.CrossValidationResult;
+import io.github.spojchil.proverlap.model.dto.Finding;
 import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.ReviewMode;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
+import io.github.spojchil.proverlap.review.prompts.CrossValidationCommentFormatter;
 import io.github.spojchil.proverlap.review.prompts.SecurityPrompt;
 import io.github.spojchil.proverlap.tier.TierClassifier;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
- * 审查编排器 — 串联拉 diff、调 LLM、发评论的整条链路。
+ * 审查编排器 — 双模型交叉验证 + Check Run + API 审查。
  * <p>
- * 支持两种触发模式：
- * <ul>
- *   <li>Webhook 异步模式：接收 WebhookPayload，异步审查并贴 Review Comment</li>
- *   <li>API 同步模式：传入 owner/repo/pr，同步返回审查结果文本</li>
- * </ul>
+ * 两个不同模型独立审查同一段代码，CrossValidator 比对发现，标记共识/分歧/单模型。
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ReviewOrchestrator {
 
     private final GitHubClient gitHubClient;
     @Qualifier("modelA")
     private final ChatModel modelA;
+    @Qualifier("modelB")
+    private final ChatModel modelB;
     private final SecurityPrompt securityPrompt;
     private final TierClassifier tierClassifier;
     private final GitHubProperties gitHubProperties;
+    private final ModelProperties modelProperties;
     private final ContextBuilder contextBuilder;
+    private final FindingParser findingParser;
+    private final CrossValidator crossValidator;
+    private final CrossValidationCommentFormatter commentFormatter;
+    @Qualifier("reviewExecutor")
+    private final Executor reviewExecutor;
+
+    public ReviewOrchestrator(GitHubClient gitHubClient,
+                              @Qualifier("modelA") ChatModel modelA,
+                              @Qualifier("modelB") ChatModel modelB,
+                              SecurityPrompt securityPrompt,
+                              TierClassifier tierClassifier,
+                              GitHubProperties gitHubProperties,
+                              ModelProperties modelProperties,
+                              ContextBuilder contextBuilder,
+                              FindingParser findingParser,
+                              CrossValidator crossValidator,
+                              CrossValidationCommentFormatter commentFormatter,
+                              @Qualifier("reviewExecutor") Executor reviewExecutor) {
+        this.gitHubClient = gitHubClient;
+        this.modelA = modelA;
+        this.modelB = modelB;
+        this.securityPrompt = securityPrompt;
+        this.tierClassifier = tierClassifier;
+        this.gitHubProperties = gitHubProperties;
+        this.modelProperties = modelProperties;
+        this.contextBuilder = contextBuilder;
+        this.findingParser = findingParser;
+        this.crossValidator = crossValidator;
+        this.commentFormatter = commentFormatter;
+        this.reviewExecutor = reviewExecutor;
+    }
 
     /**
      * 异步触发审查链路（Webhook 模式）。
@@ -57,7 +92,6 @@ public class ReviewOrchestrator {
         ReviewMode mode = parseMode();
         Long checkRunId = null;
 
-        // 创建 Check Run（非 COMMENT_ONLY 模式）
         if (mode != ReviewMode.COMMENT_ONLY && payload.getCommitSha() != null) {
             try {
                 checkRunId = gitHubClient.createCheckRun(owner, repo, payload.getCommitSha(), instId);
@@ -74,11 +108,10 @@ public class ReviewOrchestrator {
                 return;
             }
 
-            String result = doReview(diff, owner, repo, payload.getPrNumber());
+            String result = doDualModelReview(diff, owner, repo, payload.getPrNumber());
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
             gitHubClient.postReview(owner, repo, payload.getPrNumber(), result, instId);
 
-            // 更新 Check Run
             if (checkRunId != null) {
                 String conclusion = determineConclusion(mode, result);
                 finishCheckRun(owner, repo, checkRunId, conclusion,
@@ -94,41 +127,8 @@ public class ReviewOrchestrator {
         }
     }
 
-    private ReviewMode parseMode() {
-        try {
-            return ReviewMode.valueOf(gitHubProperties.getReviewMode());
-        } catch (IllegalArgumentException e) {
-            log.warn("无效的 ReviewMode: {}，回退为 COMMENT_ONLY", gitHubProperties.getReviewMode());
-            return ReviewMode.COMMENT_ONLY;
-        }
-    }
-
-    private String determineConclusion(ReviewMode mode, String findings) {
-        if (mode == ReviewMode.BLOCK_ON_FINDINGS && findings.contains("**阻断**")) {
-            return "failure";
-        }
-        return "success";
-    }
-
-    private void finishCheckRun(String owner, String repo, long checkRunId, String conclusion,
-                                 String title, String summary, long instId) {
-        try {
-            gitHubClient.updateCheckRun(owner, repo, checkRunId, conclusion, title,
-                    summary, instId);
-        } catch (Exception e) {
-            log.error("Check run 更新失败: {}", e.getMessage());
-        }
-    }
-
     /**
      * 同步审查并返回结果文本（API 模式）。
-     * <p>
-     * 不走 Review Comment，直接返回 LLM 原始输出和 Tier 信息。
-     *
-     * @param owner    仓库所有者
-     * @param repo     仓库名
-     * @param prNumber PR 编号
-     * @return 审查结果（含 Tier 分级和 LLM 输出）
      */
     public ReviewResult reviewSync(String owner, String repo, int prNumber) {
         String diff;
@@ -153,7 +153,7 @@ public class ReviewOrchestrator {
         TierLevel tier = tierClassifier.classify(countLines(diff), ContextBuilder.extractFiles(diff));
         log.info("同步审查: {}/{} #{} → {}", owner, repo, prNumber, tier.getCode());
 
-        String findings = doReview(diff, owner, repo, prNumber);
+        String findings = doDualModelReview(diff, owner, repo, prNumber);
         return ReviewResult.builder()
                 .owner(owner).repo(repo).prNumber(prNumber)
                 .tier(tier)
@@ -161,14 +161,77 @@ public class ReviewOrchestrator {
                 .build();
     }
 
-    /** 调用 LLM 执行审查，返回原始输出 */
-    private String doReview(String diff, String owner, String repo, int prNumber) {
+    /** 双模型并行审查 + 交叉比对 + 格式化输出 */
+    private String doDualModelReview(String diff, String owner, String repo, int prNumber) {
         String ref = gitHubClient.getPrBranch(owner, repo, prNumber);
         String context = contextBuilder.build(owner, repo, diff, ref != null ? ref : "");
-        ChatResponse response = modelA.chat(List.of(
+
+        // 并行调用两个模型
+        CompletableFuture<String> futureA = CompletableFuture.supplyAsync(
+                () -> callModel(modelA, context), reviewExecutor);
+        CompletableFuture<String> futureB = CompletableFuture.supplyAsync(
+                () -> callModel(modelB, context), reviewExecutor);
+
+        String textA, textB;
+        try {
+            textA = futureA.get(120, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("模型 A 调用失败", e);
+            textA = "模型 A 调用失败: " + e.getMessage();
+        }
+        try {
+            textB = futureB.get(120, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("模型 B 调用失败", e);
+            textB = "模型 B 调用失败: " + e.getMessage();
+        }
+
+        // 解析两个模型的输出
+        String modelAName = modelProperties.getModelA().getModelName();
+        String modelBName = modelProperties.getModelB().getModelName();
+        List<Finding> findingsA = findingParser.parse(textA, modelAName);
+        List<Finding> findingsB = findingParser.parse(textB, modelBName);
+
+        // 交叉比对
+        CrossValidationResult cross = crossValidator.compare(findingsA, findingsB);
+
+        // 格式化输出
+        return commentFormatter.format(cross);
+    }
+
+    /** 调用单个 LLM 执行审查 */
+    private String callModel(ChatModel model, String context) {
+        ChatResponse response = model.chat(List.of(
                 SystemMessage.from(securityPrompt.system()),
                 UserMessage.from(context)));
         return response.aiMessage().text();
+    }
+
+    private ReviewMode parseMode() {
+        try {
+            return ReviewMode.valueOf(gitHubProperties.getReviewMode());
+        } catch (IllegalArgumentException e) {
+            log.warn("无效的 ReviewMode: {}，回退为 COMMENT_ONLY", gitHubProperties.getReviewMode());
+            return ReviewMode.COMMENT_ONLY;
+        }
+    }
+
+    private String determineConclusion(ReviewMode mode, String formattedOutput) {
+        if (mode == ReviewMode.BLOCK_ON_FINDINGS
+                && formattedOutput != null && formattedOutput.contains("**阻断**")) {
+            return "failure";
+        }
+        return "success";
+    }
+
+    private void finishCheckRun(String owner, String repo, long checkRunId, String conclusion,
+                                 String title, String summary, long instId) {
+        try {
+            gitHubClient.updateCheckRun(owner, repo, checkRunId, conclusion, title,
+                    summary, instId);
+        } catch (Exception e) {
+            log.error("Check run 更新失败: {}", e.getMessage());
+        }
     }
 
     /** diff 行数估算 */
