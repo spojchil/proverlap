@@ -15,7 +15,7 @@ public class PerformancePrompt implements ReviewPrompt {
         return """
                 你是资深性能优化审查专家。请审查以下 PR 中的性能问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - N+1 查询（循环内执行数据库查询或远程调用）
                 - 无分页的全量查询（可能造成 OOM）
                 - 不必要的大对象创建（循环内 new 对象、装箱拆箱）
@@ -37,11 +37,11 @@ public class PerformancePrompt implements ReviewPrompt {
                       "suggestion": "使用 IN 查询批量加载关联数据"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 不要在无 profiling 数据时建议微优化。只指出明显低效的模式。""";
     }

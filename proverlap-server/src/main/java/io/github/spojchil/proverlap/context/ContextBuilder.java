@@ -1,5 +1,6 @@
 package io.github.spojchil.proverlap.context;
 
+import io.github.spojchil.proverlap.config.ContextProperties;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,7 @@ import org.springframework.stereotype.Service;
  * 审查上下文组装器。
  * <p>
  * 将 diff、变更文件的完整内容、项目规范文件拼装为 LLM 审查可用的完整上下文。
- * 控制总上下文大小，避免超出模型 token 限制。
+ * 上下文限制由 {@link ContextProperties} 注入，可在 application.yml 按需调整。
  */
 @Slf4j
 @Service
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 public class ContextBuilder {
 
     private final GitHubClient gitHubClient;
+    private final ContextProperties props;
 
     /** 规范文件列表 */
     private static final List<String> SPEC_FILES = List.of(
@@ -30,15 +32,6 @@ public class ContextBuilder {
             ".java", ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs",
             ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
             ".kt", ".scala", ".sql");
-
-    /** 上下文大小上限 */
-    private static final int MAX_CONTEXT_SIZE = 60_000;
-    /** 单文件最大行数 */
-    private static final int MAX_FILE_LINES = 2000;
-    /** 最多拉取文件数 */
-    private static final int MAX_FILES = 5;
-    /** 截断后的内容上限 */
-    private static final int MAX_DIFF_SIZE = 40_000;
 
     /**
      * 组装审查上下文。
@@ -60,15 +53,15 @@ public class ContextBuilder {
 
         // 3. PR diff
         ctx.append("## 本次变更 (unified diff)\n\n```diff\n");
-        String trimmed = diff.length() > MAX_DIFF_SIZE
-                ? diff.substring(0, MAX_DIFF_SIZE) + "\n... (diff 已截断)"
+        String trimmed = diff.length() > props.getMaxDiffSize()
+                ? diff.substring(0, props.getMaxDiffSize()) + "\n... (diff 已截断)"
                 : diff;
         ctx.append(trimmed);
         ctx.append("\n```\n");
 
         int size = ctx.length();
-        if (size > MAX_CONTEXT_SIZE) {
-            log.warn("审查上下文过大 ({} 字节)，截断至 {} 字节", size, MAX_CONTEXT_SIZE);
+        if (size > props.getMaxContextSize()) {
+            log.warn("审查上下文过大 ({} 字节)，截断至 {} 字节", size, props.getMaxContextSize());
         }
         return ctx.toString();
     }
@@ -94,7 +87,7 @@ public class ContextBuilder {
     private void appendFullFiles(String owner, String repo, List<String> files, StringBuilder ctx, String ref) {
         List<String> codeFiles = files.stream()
                 .filter(ContextBuilder::isCodeFile)
-                .limit(MAX_FILES)
+                .limit(props.getMaxFiles())
                 .toList();
 
         if (codeFiles.isEmpty()) return;
@@ -107,7 +100,7 @@ public class ContextBuilder {
             String ext = path.substring(path.lastIndexOf('.') + 1);
             ctx.append("### ").append(path).append("\n\n")
                     .append("```").append(ext).append("\n")
-                    .append(trimLines(content, MAX_FILE_LINES))
+                    .append(trimLines(content, props.getMaxFileLines()))
                     .append("\n```\n\n");
         }
     }

@@ -15,7 +15,7 @@ public class CorrectnessPrompt implements ReviewPrompt {
         return """
                 你是资深代码逻辑审查专家。请审查以下 PR 中的逻辑正确性问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - 空指针/未定义访问（对象的 null 检查遗漏）
                 - 数组/集合越界（索引未校验，循环边界错误）
                 - 异常处理缺失（try-catch 吞异常、不处理异常、返回值未检查）
@@ -39,11 +39,11 @@ public class CorrectnessPrompt implements ReviewPrompt {
                       "suggestion": "添加 null 检查或使用 Optional"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 只审查行为是否"对"或"错"——不审代码是否写得好、是否优雅。""";
     }

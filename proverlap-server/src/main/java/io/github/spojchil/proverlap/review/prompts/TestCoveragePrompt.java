@@ -15,7 +15,7 @@ public class TestCoveragePrompt implements ReviewPrompt {
         return """
                 你是资深测试质量审查专家。请审查以下 PR 的测试覆盖情况。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - 关键路径缺失测试（核心业务逻辑、边界条件无对应测试）
                 - 测试只覆盖 happy path（无异常路径、无边界值测试）
                 - 测试验证了错误的东西（assert 不痛不痒，没有验证真实行为）
@@ -36,11 +36,11 @@ public class TestCoveragePrompt implements ReviewPrompt {
                       "suggestion": "添加测试覆盖正常注册、重复注册、参数为空三种场景"
                     }
                   ],
-                  "summary": "..."
                 }
 
                 严重度取值: 阻断 / 警告 / 建议
                 line 为整数（行号），无问题时 findings 为空数组。
+                description 和 suggestion 各不超过 80 字，直接说问题和修法。
 
                 不要建议"所有代码都要有测试"这类无意义的废话。只指出真正重要的缺失。
                 不要追求覆盖率数字，关注关键路径是否被验证。""";

@@ -19,14 +19,18 @@ public class ResultAggregator {
     private static final Map<String, Integer> SEVERITY_ORDER = Map.of(
             "阻断", 0, "警告", 1, "建议", 2);
 
+    /** 聚合结果：Markdown 文本 + 去重后的阻断计数 */
+    public record AggregationResult(String text, int blockingCount) {}
+
     /**
      * 聚合多维度审查结果。
      *
      * @param results 各维度审查结果列表
-     * @return 聚合后的 Markdown 文本
+     * @return 聚合结果（文本 + 去重阻断计数）
      */
-    public String aggregate(List<DimensionResult> results) {
-        if (results == null || results.isEmpty()) return "审查未发现需要关注的维度。";
+    public AggregationResult aggregate(List<DimensionResult> results) {
+        if (results == null || results.isEmpty())
+            return new AggregationResult("审查未发现需要关注的维度。", 0);
 
         // 1. 收集所有 Findings + 去重
         List<Finding> allFindings = new ArrayList<>();
@@ -65,7 +69,7 @@ public class ResultAggregator {
             sb.append("\n\n---\n\n");
         }
 
-        return sb.toString();
+        return new AggregationResult(sb.toString(), (int) blocking);
     }
 
     /**
