@@ -5,6 +5,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
+import io.github.spojchil.proverlap.config.ModelProperties;
 import io.github.spojchil.proverlap.config.TierProperties;
 import io.github.spojchil.proverlap.context.ContextBuilder;
 import io.github.spojchil.proverlap.model.dto.CrossValidationResult;
@@ -50,6 +51,7 @@ class ReviewOrchestratorTest {
     private SecurityPrompt securityPrompt;
     private TierClassifier tierClassifier;
     private GitHubProperties gitHubProperties;
+    private ModelProperties modelProperties;
     private ReviewOrchestrator orchestrator;
     private final Executor reviewExecutor = Runnable::run; // 同步执行，便于测试
 
@@ -69,10 +71,15 @@ class ReviewOrchestratorTest {
         tierClassifier = spy(new TierClassifier(tierProperties));
         gitHubProperties = new GitHubProperties();
         gitHubProperties.setInstallationId(INSTALLATION_ID);
+        modelProperties = new ModelProperties();
+        modelProperties.setModelA(new ModelProperties.ModelConfig());
+        modelProperties.getModelA().setModelName("DeepSeek");
+        modelProperties.setModelB(new ModelProperties.ModelConfig());
+        modelProperties.getModelB().setModelName("mimo");
 
         orchestrator = new ReviewOrchestrator(gitHubClient, modelA, modelB,
-                securityPrompt, tierClassifier, gitHubProperties, contextBuilder,
-                findingParser, crossValidator, commentFormatter, reviewExecutor);
+                securityPrompt, tierClassifier, gitHubProperties, modelProperties,
+                contextBuilder, findingParser, crossValidator, commentFormatter, reviewExecutor);
     }
 
     // ==================== 异步模式 ====================

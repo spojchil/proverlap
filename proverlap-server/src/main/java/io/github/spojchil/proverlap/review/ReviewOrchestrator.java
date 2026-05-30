@@ -6,6 +6,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
+import io.github.spojchil.proverlap.config.ModelProperties;
 import io.github.spojchil.proverlap.context.ContextBuilder;
 import io.github.spojchil.proverlap.model.dto.CrossValidationResult;
 import io.github.spojchil.proverlap.model.dto.Finding;
@@ -42,6 +43,7 @@ public class ReviewOrchestrator {
     private final SecurityPrompt securityPrompt;
     private final TierClassifier tierClassifier;
     private final GitHubProperties gitHubProperties;
+    private final ModelProperties modelProperties;
     private final ContextBuilder contextBuilder;
     private final FindingParser findingParser;
     private final CrossValidator crossValidator;
@@ -55,6 +57,7 @@ public class ReviewOrchestrator {
                               SecurityPrompt securityPrompt,
                               TierClassifier tierClassifier,
                               GitHubProperties gitHubProperties,
+                              ModelProperties modelProperties,
                               ContextBuilder contextBuilder,
                               FindingParser findingParser,
                               CrossValidator crossValidator,
@@ -66,6 +69,7 @@ public class ReviewOrchestrator {
         this.securityPrompt = securityPrompt;
         this.tierClassifier = tierClassifier;
         this.gitHubProperties = gitHubProperties;
+        this.modelProperties = modelProperties;
         this.contextBuilder = contextBuilder;
         this.findingParser = findingParser;
         this.crossValidator = crossValidator;
@@ -183,8 +187,10 @@ public class ReviewOrchestrator {
         }
 
         // 解析两个模型的输出
-        List<Finding> findingsA = findingParser.parse(textA, "DeepSeek");
-        List<Finding> findingsB = findingParser.parse(textB, "mimo");
+        String modelAName = modelProperties.getModelA().getModelName();
+        String modelBName = modelProperties.getModelB().getModelName();
+        List<Finding> findingsA = findingParser.parse(textA, modelAName);
+        List<Finding> findingsB = findingParser.parse(textB, modelBName);
 
         // 交叉比对
         CrossValidationResult cross = crossValidator.compare(findingsA, findingsB);
