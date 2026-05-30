@@ -326,7 +326,7 @@ public class GitHubClient {
     private String generateJwt() {
         try {
             PrivateKey privateKey;
-            if (props.getPrivateKeyB64() != null) {
+            if (props.getPrivateKeyB64() != null && !props.getPrivateKeyB64().isBlank()) {
                 privateKey = KeyFactory.getInstance("RSA")
                         .generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(props.getPrivateKeyB64())));
             } else {

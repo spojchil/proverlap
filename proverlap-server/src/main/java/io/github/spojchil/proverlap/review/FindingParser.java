@@ -1,98 +1,95 @@
 package io.github.spojchil.proverlap.review;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.spojchil.proverlap.model.dto.Finding;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * LLM 审查输出解析器 — 从 Markdown 文本提取结构化发现列表。
+ * LLM 审查输出解析器 — 从 JSON 文本提取结构化发现列表。
  * <p>
- * 解析 SecurityPrompt 的输出格式：
- * <pre>
- * > **阻断** `src/AuthService.java` L3 — 硬编码密钥
- * > 详细描述...
- * > 建议: 修复方案...
- * </pre>
+ * 模型通过 {@code response_format: json_object} 返回结构化 JSON：
+ * <pre>{@code
+ * {
+ *   "findings": [
+ *     { "severity": "阻断", "file": "...", "line": 42, "title": "...", "description": "...", "suggestion": "..." }
+ *   ],
+ *   "summary": "..."
+ * }
+ * }</pre>
  */
 @Slf4j
 @Component
 public class FindingParser {
 
-    /** 匹配发现标题行: > **严重度** `文件路径` L行号 — 标题 */
-    private static final Pattern FINDING_HEADER = Pattern.compile(
-            "^>\\s*\\*\\*(阻断|警告|建议)\\*\\*\\s*`([^`]+)`\\s*L(\\d+)\\s*[—\\-]\\s*(.*)");
-
-    /** 匹配建议行 */
-    private static final Pattern SUGGESTION_LINE = Pattern.compile(
-            "^>\\s*(建议|修复建议)[：:]\\s*(.*)");
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 从 LLM 审查输出的 Markdown 文本中解析发现列表。
+     * 从 LLM JSON 输出解析发现列表。
      *
-     * @param text        LLM 原始输出文本
-     * @param modelSource 来源模型标识（modelA / modelB）
+     * @param text        LLM 返回的 JSON 文本
+     * @param modelSource 来源模型标识（如 deepseek-v4-flash）
      * @return 结构化发现列表
      */
     public List<Finding> parse(String text, String modelSource) {
         List<Finding> findings = new ArrayList<>();
         if (text == null || text.isBlank()) return findings;
 
-        String[] lines = text.split("\n");
-        Finding current = null;
-        StringBuilder descBuilder = new StringBuilder();
-        String suggestion = null;
-
-        for (String line : lines) {
-            Matcher headerMatcher = FINDING_HEADER.matcher(line);
-            if (headerMatcher.matches()) {
-                // 保存上一个 Finding
-                if (current != null) {
-                    current.setDescription(descBuilder.toString().trim());
-                    current.setSuggestion(suggestion);
-                    findings.add(current);
-                }
-
-                current = Finding.builder()
-                        .severity(headerMatcher.group(1))
-                        .file(headerMatcher.group(2))
-                        .line(Integer.parseInt(headerMatcher.group(3)))
-                        .title(headerMatcher.group(4))
-                        .modelSource(modelSource)
-                        .build();
-                descBuilder = new StringBuilder();
-                suggestion = null;
-                continue;
-            }
-
-            if (current == null) continue;
-
-            Matcher suggestionMatcher = SUGGESTION_LINE.matcher(line);
-            if (suggestionMatcher.matches()) {
-                suggestion = suggestionMatcher.group(2);
-                continue;
-            }
-
-            // 以 > 开头的行 → 描述/建议的一部分
-            if (line.matches("^>.*")) {
-                String content = line.replaceFirst("^>\\s?", "").trim();
-                if (!content.isEmpty()) {
-                    // 无前缀：视作描述（当前无 suggestion 匹配时）
-                    descBuilder.append(content).append(" ");
-                }
-            }
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(extractJson(text));
+        } catch (JsonProcessingException e) {
+            log.warn("LLM 输出 JSON 解析失败: {}", e.getMessage());
+            return findings;
         }
 
-        // 保存最后一个
-        if (current != null) {
-            current.setDescription(descBuilder.toString().trim());
-            current.setSuggestion(suggestion);
-            findings.add(current);
+        JsonNode findingsNode = root.path("findings");
+        if (!findingsNode.isArray()) return findings;
+
+        for (JsonNode node : findingsNode) {
+            Finding f = Finding.builder()
+                    .severity(node.path("severity").asText("警告"))
+                    .file(node.path("file").asText(""))
+                    .line(node.path("line").asInt(0))
+                    .title(node.path("title").asText(""))
+                    .description(node.path("description").asText(""))
+                    .suggestion(node.path("suggestion").asText(""))
+                    .modelSource(modelSource)
+                    .build();
+            findings.add(f);
         }
 
         return findings;
+    }
+
+    /**
+     * 从 LLM 原始输出中提取 JSON 部分。
+     * <p>
+     * 有时 LLM 会在 JSON 外包裹 markdown 代码块（```json ... ```），
+     * 提取内部的纯 JSON 文本。无 markdown 包裹时直接返回原文。
+     */
+    static String extractJson(String text) {
+        String trimmed = text.trim();
+        int start = trimmed.indexOf("```json");
+        if (start >= 0) {
+            int innerStart = trimmed.indexOf('\n', start) + 1;
+            int end = trimmed.lastIndexOf("```");
+            if (end > innerStart) {
+                return trimmed.substring(innerStart, end).trim();
+            }
+        }
+        // 尝试 ``` 无语言标记
+        if (trimmed.startsWith("```")) {
+            int innerStart = trimmed.indexOf('\n') + 1;
+            int end = trimmed.lastIndexOf("```");
+            if (end > innerStart) {
+                return trimmed.substring(innerStart, end).trim();
+            }
+        }
+        return trimmed;
     }
 }

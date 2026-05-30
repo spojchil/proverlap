@@ -1,6 +1,7 @@
 package io.github.spojchil.proverlap.config;
 
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
@@ -44,7 +45,7 @@ public class LLMConfig {
                 .apiKey(cfg.getApiKey())
                 .modelName(cfg.getModelName())
                 .temperature(0.3)
-                .maxTokens(4096)
+                .maxTokens(8192)
                 .timeout(Duration.ofSeconds(120))
                 .build();
     }
@@ -62,7 +63,7 @@ public class LLMConfig {
                 .apiKey(cfg.getApiKey())
                 .modelName(cfg.getModelName())
                 .temperature(0.3)
-                .maxTokens(4096)
+                .maxTokens(8192)
                 .timeout(Duration.ofSeconds(120))
                 .build();
     }
