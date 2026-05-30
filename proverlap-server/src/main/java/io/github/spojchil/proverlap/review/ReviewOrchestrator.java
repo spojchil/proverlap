@@ -160,9 +160,13 @@ public class ReviewOrchestrator {
     }
 
     private String determineConclusion(ReviewMode mode, String formattedOutput) {
-        if (mode == ReviewMode.BLOCK_ON_FINDINGS
-                && formattedOutput != null && formattedOutput.contains("**阻断**")) {
-            return "failure";
+        if (mode == ReviewMode.BLOCK_ON_FINDINGS && formattedOutput != null) {
+            // 从审查总结中解析阻断数："0 阻断 · 1 警告 · 2 建议"
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("(\\d+) 阻断").matcher(formattedOutput);
+            if (m.find() && Integer.parseInt(m.group(1)) > 0) {
+                return "failure";
+            }
         }
         return "success";
     }
