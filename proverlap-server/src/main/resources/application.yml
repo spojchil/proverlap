@@ -34,6 +34,7 @@ mybatis-plus:
 # LLM 模型配置（可插拔，按需替换提供商）
 proverlap:
   models:
+    max-tokens: 16384
     model-a:
       base-url: ${MODEL_A_BASE_URL}
       api-key: ${MODEL_A_API_KEY}
@@ -52,6 +53,13 @@ proverlap:
     installation-id: ${GITHUB_INSTALLATION_ID:}
     token: ${GITHUB_TOKEN:}
     review-mode: ${REVIEW_MODE:COMMENT_ONLY}
+
+  # 审查上下文配置
+  context:
+    max-files: 10            # 最多拉取变更文件完整内容
+    max-file-lines: 3000     # 单文件最大行数
+    max-diff-size: 80000     # diff 文本最大字节数
+    max-context-size: 120000 # 上下文总大小上限
 
   # Tier 阈值
   tier:

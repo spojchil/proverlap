@@ -74,22 +74,23 @@ public class ReviewOrchestrator {
                 return;
             }
 
-            String result = doMultiDimensionReview(diff, payload.getPrTitle(),
+            ReviewOutcome outcome = doMultiDimensionReview(diff, payload.getPrTitle(),
                     owner, repo, payload.getPrNumber());
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
 
-            // 提取摘要行作为评论，完整报告放入 Check Run
-            String summary = extractSummary(result);
+            String summary = extractSummary(outcome.result());
             String comment = summary
                     + "\n\n> 详细信息见 [Checks](https://github.com/" + payload.getFullName()
                     + "/pull/" + payload.getPrNumber() + "/checks) 标签页";
             gitHubClient.postReview(owner, repo, payload.getPrNumber(), comment, instId);
 
             if (checkRunId != null) {
-                String conclusion = determineConclusion(mode, result);
+                boolean hasBlocking = outcome.blockingCount() > 0;
+                String conclusion = (mode == ReviewMode.BLOCK_ON_FINDINGS && hasBlocking)
+                        ? "failure" : "success";
                 finishCheckRun(owner, repo, checkRunId, conclusion,
                         "审查完成 · " + (conclusion.equals("failure") ? "发现阻断问题" : "无阻断"),
-                        result, instId);
+                        outcome.result(), instId);
             }
 
         } catch (Exception e) {
@@ -129,17 +130,17 @@ public class ReviewOrchestrator {
         TierLevel tier = tierClassifier.classify(countLines(diff), ContextBuilder.extractFiles(diff));
         log.info("同步审查: {}/{} #{} → {}", owner, repo, prNumber, tier.getCode());
 
-        String findings = doMultiDimensionReview(diff, "", owner, repo, prNumber);
+        ReviewOutcome outcome = doMultiDimensionReview(diff, "", owner, repo, prNumber);
         return ReviewResult.builder()
                 .owner(owner).repo(repo).prNumber(prNumber)
                 .tier(tier)
-                .findings(findings)
+                .findings(outcome.result())
                 .build();
     }
 
     /** 多维度审查 + 双模型 CV + 格式化输出 */
-    private String doMultiDimensionReview(String diff, String prTitle,
-                                           String owner, String repo, int prNumber) {
+    private ReviewOutcome doMultiDimensionReview(String diff, String prTitle,
+                                                  String owner, String repo, int prNumber) {
         String ref = gitHubClient.getPrBranch(owner, repo, prNumber);
         String context = contextBuilder.build(owner, repo, diff, ref != null ? ref : "");
 
@@ -147,8 +148,18 @@ public class ReviewOrchestrator {
         List<DimensionReviewer.DimensionResult> results =
                 dimensionReviewer.review(prTitle != null ? prTitle : "", context, tier);
 
-        return resultAggregator.aggregate(results);
+        int blockingCount = results.stream()
+                .filter(r -> r.findings() != null)
+                .flatMap(r -> r.findings().stream())
+                .filter(f -> "阻断".equals(f.getSeverity()))
+                .mapToInt(f -> 1)
+                .sum();
+
+        String text = resultAggregator.aggregate(results);
+        return new ReviewOutcome(text, blockingCount);
     }
+
+    private record ReviewOutcome(String result, int blockingCount) {}
 
     private ReviewMode parseMode() {
         try {
@@ -158,19 +169,6 @@ public class ReviewOrchestrator {
             return ReviewMode.COMMENT_ONLY;
         }
     }
-
-    private String determineConclusion(ReviewMode mode, String formattedOutput) {
-        if (mode == ReviewMode.BLOCK_ON_FINDINGS && formattedOutput != null) {
-            // 从审查总结中解析阻断数："0 阻断 · 1 警告 · 2 建议"
-            java.util.regex.Matcher m = java.util.regex.Pattern
-                    .compile("(\\d+) 阻断").matcher(formattedOutput);
-            if (m.find() && Integer.parseInt(m.group(1)) > 0) {
-                return "failure";
-            }
-        }
-        return "success";
-    }
-
     private void finishCheckRun(String owner, String repo, long checkRunId, String conclusion,
                                  String title, String summary, long instId) {
         try {

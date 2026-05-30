@@ -21,13 +21,13 @@ public class ModelProperties {
     /** 模型 B — 交叉验证模型（如 Claude / GPT / Gemini） */
     private ModelConfig modelB = new ModelConfig();
 
+    /** 最大输出 token 数，默认 16384 */
+    private int maxTokens = 16384;
+
     @Data
     public static class ModelConfig {
-        /** API 请求地址，例如 https://api.deepseek.com/v1 */
         private String baseUrl;
-        /** API 密钥 */
         private String apiKey;
-        /** 模型名称，例如 deepseek-chat */
         private String modelName;
     }
 }

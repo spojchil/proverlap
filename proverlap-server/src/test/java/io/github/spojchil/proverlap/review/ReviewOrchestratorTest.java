@@ -5,6 +5,7 @@ import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
 import io.github.spojchil.proverlap.config.TierProperties;
 import io.github.spojchil.proverlap.context.ContextBuilder;
+import io.github.spojchil.proverlap.model.dto.Finding;
 import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
@@ -173,10 +174,12 @@ class ReviewOrchestratorTest {
         when(gitHubClient.getPrBranch(anyString(), anyString(), anyInt())).thenReturn("main");
         when(contextBuilder.build(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn("context");
+        Finding blocking = Finding.builder().severity("阻断").file("a.java").line(1)
+                .title("x").confidence(0.9).modelSource("modelA").build();
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security",
-                        "> **阻断** 硬编码密钥", true)));
-        when(resultAggregator.aggregate(any())).thenReturn("> **阻断** 硬编码密钥");
+                        "1 阻断 · 0 警告", true, List.of(blocking))));
+        when(resultAggregator.aggregate(any())).thenReturn("1 阻断 · 0 警告\n> **阻断** x");
 
         orchestrator.review(buildPayload("fix: xxx"));
 

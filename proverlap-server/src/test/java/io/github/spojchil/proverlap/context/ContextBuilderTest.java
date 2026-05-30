@@ -1,5 +1,6 @@
 package io.github.spojchil.proverlap.context;
 
+import io.github.spojchil.proverlap.config.ContextProperties;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +39,8 @@ class ContextBuilderTest {
 
     @BeforeEach
     void setUp() {
-        builder = new ContextBuilder(gitHubClient);
+        ContextProperties props = new ContextProperties();
+        builder = new ContextBuilder(gitHubClient, props);
         // 默认所有文件不存在，匹配 4 参数（owner, repo, path, ref）
         when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(null);
