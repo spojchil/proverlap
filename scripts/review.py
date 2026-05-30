@@ -9,7 +9,7 @@ PRoverlap — PR 审查命令行工具（Python 版）
   python scripts/review.py https://github.com/owner/repo/pull/1 http://localhost:8080
   PROVERLAP_SERVER=https://your-host.com python scripts/review.py <URL>
 
-服务器地址优先级: 命令行参数 > PROVERLAP_SERVER 环境变量 > https://ecs.spojchil.top
+服务器地址优先级: 命令行参数 > PROVERLAP_SERVER 环境变量 > http://localhost:8080
 
 环境准备:
   pip install -r scripts/requirements.txt
@@ -88,7 +88,7 @@ def main() -> None:
         sys.argv[2]
         if len(sys.argv) > 2
         else os.environ.get(
-            "PROVERLAP_SERVER", "https://ecs.spojchil.top"
+            "PROVERLAP_SERVER", "http://localhost:8080"
         )
     )
     review(pr_url, server)
