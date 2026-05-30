@@ -21,6 +21,9 @@ public class GitHubProperties {
     /** GitHub App 私钥（PEM 格式完整字符串，含 BEGIN/END 边界标记） */
     private String privateKey;
 
+    /** GitHub App 私钥 PKCS#8 Base64 编码（Docker 部署推荐，避免多行 PEM 问题） */
+    private String privateKeyB64;
+
     /** Webhook HMAC-SHA256 签名密钥 */
     private String webhookSecret;
 
