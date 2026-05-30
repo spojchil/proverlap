@@ -74,7 +74,7 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "fine", true)));
-        when(resultAggregator.aggregate(any())).thenReturn("## 审查总结\nfine");
+        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("## 审查总结\nfine", 0));
 
         WebhookPayload payload = buildPayload("feat: 新功能");
         orchestrator.review(payload);
@@ -131,7 +131,7 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "xd", true)));
-        when(resultAggregator.aggregate(any())).thenReturn("xd");
+        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("xd", 0));
 
         ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
 
@@ -154,7 +154,7 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "ok", true)));
-        when(resultAggregator.aggregate(any())).thenReturn("ok");
+        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("ok", 0));
 
         orchestrator.review(buildPayload("feat: x"));
 
@@ -179,7 +179,7 @@ class ReviewOrchestratorTest {
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security",
                         "1 阻断 · 0 警告", true, List.of(blocking))));
-        when(resultAggregator.aggregate(any())).thenReturn("1 阻断 · 0 警告\n> **阻断** x");
+        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("1 阻断 · 0 警告\n> **阻断** x", 1));
 
         orchestrator.review(buildPayload("fix: xxx"));
 

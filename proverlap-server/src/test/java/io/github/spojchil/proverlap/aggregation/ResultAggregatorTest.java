@@ -75,28 +75,31 @@ class ResultAggregatorTest {
         DimensionResult r1 = DimensionResult.of("security", "### security\nok", true, List.of(f1, f2));
         DimensionResult r2 = DimensionResult.of("correctness", "### correctness\nok", true, List.of());
 
-        String output = aggregator.aggregate(List.of(r1, r2));
+        ResultAggregator.AggregationResult output = aggregator.aggregate(List.of(r1, r2));
 
-        assertTrue(output.contains("审查总结"));
-        assertTrue(output.contains("1 阻断"));
-        assertTrue(output.contains("1 警告"));
-        assertTrue(output.contains("双模型交叉验证"));
-        assertTrue(output.contains("security"));
-        assertTrue(output.contains("correctness"));
+        assertTrue(output.text().contains("审查总结"));
+        assertTrue(output.text().contains("1 阻断"));
+        assertTrue(output.text().contains("1 警告"));
+        assertTrue(output.text().contains("双模型交叉验证"));
+        assertTrue(output.text().contains("security"));
+        assertTrue(output.text().contains("correctness"));
+        assertEquals(1, output.blockingCount());
     }
 
     @Test
     @DisplayName("聚合 — 空结果")
     void aggregateEmpty() {
-        String output = aggregator.aggregate(List.of());
-        assertTrue(output.contains("未发现"));
+        ResultAggregator.AggregationResult output = aggregator.aggregate(List.of());
+        assertTrue(output.text().contains("未发现"));
+        assertEquals(0, output.blockingCount());
     }
 
     @Test
     @DisplayName("聚合 — null 输入")
     void aggregateNull() {
-        String output = aggregator.aggregate(null);
-        assertTrue(output.contains("未发现"));
+        ResultAggregator.AggregationResult output = aggregator.aggregate(null);
+        assertTrue(output.text().contains("未发现"));
+        assertEquals(0, output.blockingCount());
     }
 
     // ==================== 同问题判定 ====================

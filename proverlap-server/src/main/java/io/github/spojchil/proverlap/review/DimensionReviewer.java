@@ -167,7 +167,11 @@ public class DimensionReviewer {
         return fa.thenCombine(fb, (findingsA, findingsB) -> {
             CrossValidationResult cross = crossValidator.compare(findingsA, findingsB);
             String formatted = commentFormatter.format(cross);
-            return DimensionResult.of(task.dimension(), formatted, true, cross.getConsensus());
+            List<Finding> allFindings = new ArrayList<>();
+            allFindings.addAll(cross.getConsensus());
+            cross.getModelAOnly().forEach(f -> allFindings.add(f));
+            cross.getModelBOnly().forEach(f -> allFindings.add(f));
+            return DimensionResult.of(task.dimension(), formatted, true, allFindings);
         }).exceptionally(e -> {
             log.error("双模型审查失败({}): {}", task.dimension(), e.getMessage());
             return DimensionResult.of(task.dimension(), "审查失败: " + e.getMessage(), false);

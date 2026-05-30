@@ -36,7 +36,7 @@ proverlap:
   models:
     max-tokens: 32768
     temperature: 0.3
-    timeout-seconds: 180
+    timeout-seconds: 600
     model-a:
       base-url: ${MODEL_A_BASE_URL}
       api-key: ${MODEL_A_API_KEY}

@@ -148,15 +148,8 @@ public class ReviewOrchestrator {
         List<DimensionReviewer.DimensionResult> results =
                 dimensionReviewer.review(prTitle != null ? prTitle : "", context, tier);
 
-        int blockingCount = results.stream()
-                .filter(r -> r.findings() != null)
-                .flatMap(r -> r.findings().stream())
-                .filter(f -> "阻断".equals(f.getSeverity()))
-                .mapToInt(f -> 1)
-                .sum();
-
-        String text = resultAggregator.aggregate(results);
-        return new ReviewOutcome(text, blockingCount);
+        ResultAggregator.AggregationResult aggregated = resultAggregator.aggregate(results);
+        return new ReviewOutcome(aggregated.text(), aggregated.blockingCount());
     }
 
     private record ReviewOutcome(String result, int blockingCount) {}
