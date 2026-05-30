@@ -1,5 +1,6 @@
 package io.github.spojchil.proverlap.review;
 
+import io.github.spojchil.proverlap.aggregation.ResultAggregator;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
 import io.github.spojchil.proverlap.context.ContextBuilder;
@@ -9,7 +10,6 @@ import io.github.spojchil.proverlap.model.enums.ReviewMode;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
 import io.github.spojchil.proverlap.tier.TierClassifier;
 import java.util.List;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -28,17 +28,20 @@ public class ReviewOrchestrator {
     private final GitHubProperties gitHubProperties;
     private final ContextBuilder contextBuilder;
     private final DimensionReviewer dimensionReviewer;
+    private final ResultAggregator resultAggregator;
 
     public ReviewOrchestrator(GitHubClient gitHubClient,
                               TierClassifier tierClassifier,
                               GitHubProperties gitHubProperties,
                               ContextBuilder contextBuilder,
-                              DimensionReviewer dimensionReviewer) {
+                              DimensionReviewer dimensionReviewer,
+                              ResultAggregator resultAggregator) {
         this.gitHubClient = gitHubClient;
         this.tierClassifier = tierClassifier;
         this.gitHubProperties = gitHubProperties;
         this.contextBuilder = contextBuilder;
         this.dimensionReviewer = dimensionReviewer;
+        this.resultAggregator = resultAggregator;
     }
 
     /**
@@ -138,9 +141,7 @@ public class ReviewOrchestrator {
         List<DimensionReviewer.DimensionResult> results =
                 dimensionReviewer.review(prTitle != null ? prTitle : "", context, tier);
 
-        return results.stream()
-                .map(DimensionReviewer.DimensionResult::findingsText)
-                .collect(Collectors.joining("\n\n---\n\n"));
+        return resultAggregator.aggregate(results);
     }
 
     private ReviewMode parseMode() {

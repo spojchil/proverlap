@@ -143,8 +143,9 @@ public class DimensionReviewer {
             try {
                 log.info("单模型审查: {}", task.dimension());
                 String raw = callModel(modelA, task.prompt(), context);
+                List<Finding> findings = findingParser.parse(raw, "modelA");
                 return DimensionResult.of(task.dimension(),
-                        "## " + task.dimension() + "（单模型 · 需复核）\n\n" + raw, false);
+                        "## " + task.dimension() + "（单模型 · 需复核）\n\n" + raw, false, findings);
             } catch (Exception e) {
                 log.error("单模型审查失败({}): {}", task.dimension(), e.getMessage());
                 return DimensionResult.of(task.dimension(), "审查失败: " + e.getMessage(), false);
@@ -162,7 +163,7 @@ public class DimensionReviewer {
         return fa.thenCombine(fb, (findingsA, findingsB) -> {
             CrossValidationResult cross = crossValidator.compare(findingsA, findingsB);
             String formatted = commentFormatter.format(cross);
-            return DimensionResult.of(task.dimension(), formatted, true);
+            return DimensionResult.of(task.dimension(), formatted, true, cross.getConsensus());
         }).exceptionally(e -> {
             log.error("双模型审查失败({}): {}", task.dimension(), e.getMessage());
             return DimensionResult.of(task.dimension(), "审查失败: " + e.getMessage(), false);
@@ -272,9 +273,14 @@ public class DimensionReviewer {
     }
 
     /** 维度审查结果 */
-    public record DimensionResult(String dimension, String findingsText, boolean crossValidated) {
+    public record DimensionResult(String dimension, String findingsText, boolean crossValidated,
+                                  List<Finding> findings) {
         public static DimensionResult of(String dimension, String findingsText, boolean crossValidated) {
-            return new DimensionResult(dimension, findingsText, crossValidated);
+            return new DimensionResult(dimension, findingsText, crossValidated, List.of());
+        }
+        public static DimensionResult of(String dimension, String findingsText, boolean crossValidated,
+                                         List<Finding> findings) {
+            return new DimensionResult(dimension, findingsText, crossValidated, findings);
         }
     }
 }

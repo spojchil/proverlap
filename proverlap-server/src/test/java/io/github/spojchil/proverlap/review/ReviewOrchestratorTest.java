@@ -1,5 +1,6 @@
 package io.github.spojchil.proverlap.review;
 
+import io.github.spojchil.proverlap.aggregation.ResultAggregator;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
 import io.github.spojchil.proverlap.config.TierProperties;
@@ -34,6 +35,8 @@ class ReviewOrchestratorTest {
     private DimensionReviewer dimensionReviewer;
     @Mock
     private ContextBuilder contextBuilder;
+    @Mock
+    private ResultAggregator resultAggregator;
 
     private TierClassifier tierClassifier;
     private GitHubProperties gitHubProperties;
@@ -54,7 +57,8 @@ class ReviewOrchestratorTest {
         gitHubProperties = new GitHubProperties();
         gitHubProperties.setInstallationId(INSTALLATION_ID);
         orchestrator = new ReviewOrchestrator(
-                gitHubClient, tierClassifier, gitHubProperties, contextBuilder, dimensionReviewer);
+                gitHubClient, tierClassifier, gitHubProperties, contextBuilder,
+                dimensionReviewer, resultAggregator);
     }
 
     // ==================== Webhook 异步模式 ====================
@@ -69,12 +73,13 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "fine", true)));
+        when(resultAggregator.aggregate(any())).thenReturn("## 审查总结\nfine");
 
         WebhookPayload payload = buildPayload("feat: 新功能");
         orchestrator.review(payload);
 
         verify(gitHubClient).postReview(eq(OWNER), eq(REPO), eq(PR_NUMBER),
-                contains("fine"), eq(INSTALLATION_ID));
+                contains("审查总结"), eq(INSTALLATION_ID));
         verify(dimensionReviewer).review(eq("feat: 新功能"), eq("context"), any());
     }
 
@@ -125,6 +130,7 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "xd", true)));
+        when(resultAggregator.aggregate(any())).thenReturn("xd");
 
         ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
 
@@ -147,6 +153,7 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "ok", true)));
+        when(resultAggregator.aggregate(any())).thenReturn("ok");
 
         orchestrator.review(buildPayload("feat: x"));
 
@@ -169,6 +176,7 @@ class ReviewOrchestratorTest {
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security",
                         "> **阻断** 硬编码密钥", true)));
+        when(resultAggregator.aggregate(any())).thenReturn("> **阻断** 硬编码密钥");
 
         orchestrator.review(buildPayload("fix: xxx"));
 
