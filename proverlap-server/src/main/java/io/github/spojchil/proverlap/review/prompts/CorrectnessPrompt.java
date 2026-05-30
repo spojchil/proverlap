@@ -15,7 +15,7 @@ public class CorrectnessPrompt implements ReviewPrompt {
         return """
                 你是资深代码逻辑审查专家。请审查以下 PR 中的逻辑正确性问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - 空指针/未定义访问（对象的 null 检查遗漏）
                 - 数组/集合越界（索引未校验，循环边界错误）
                 - 异常处理缺失（try-catch 吞异常、不处理异常、返回值未检查）

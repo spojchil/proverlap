@@ -15,7 +15,7 @@ public class TestCoveragePrompt implements ReviewPrompt {
         return """
                 你是资深测试质量审查专家。请审查以下 PR 的测试覆盖情况。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - 关键路径缺失测试（核心业务逻辑、边界条件无对应测试）
                 - 测试只覆盖 happy path（无异常路径、无边界值测试）
                 - 测试验证了错误的东西（assert 不痛不痒，没有验证真实行为）

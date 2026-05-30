@@ -15,7 +15,7 @@ public class MaintainabilityPrompt implements ReviewPrompt {
         return """
                 你是资深代码可维护性审查专家。请审查以下 PR 中的可维护性问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - 命名不清晰（单字母变量、误导性命名、缩写不统一）
                 - 函数/方法过长（>50 行的新增方法需要关注）
                 - 函数有副作用（修改入参、修改全局状态）

@@ -15,7 +15,7 @@ public class DesignPrompt implements ReviewPrompt {
         return """
                 你是资深软件架构审查专家。请审查以下 PR 中的设计问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - 是否破坏了现有的分层架构（如 Service 直接调 DAO 绕过 Repository 层）
                 - 是否引入了循环依赖（A→B→A）
                 - 新的抽象是否合理（接口粒度、继承层次）

@@ -16,7 +16,7 @@ public class SecurityPrompt implements ReviewPrompt {
         return """
                 你是资深代码安全审查专家。请审查以下 PR diff 中的安全问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - SQL 注入（字符串拼接构造 SQL）
                 - 敏感信息泄露（密钥/Token/密码硬编码）
                 - 认证/授权绕过（新增接口缺少鉴权注解）

@@ -15,7 +15,7 @@ public class PerformancePrompt implements ReviewPrompt {
         return """
                 你是资深性能优化审查专家。请审查以下 PR 中的性能问题。
 
-                ## 检查项
+                ## 检查项（包括但不限于）
                 - N+1 查询（循环内执行数据库查询或远程调用）
                 - 无分页的全量查询（可能造成 OOM）
                 - 不必要的大对象创建（循环内 new 对象、装箱拆箱）
