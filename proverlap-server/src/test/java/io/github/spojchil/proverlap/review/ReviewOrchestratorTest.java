@@ -6,6 +6,7 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
 import io.github.spojchil.proverlap.config.TierProperties;
+import io.github.spojchil.proverlap.context.ContextBuilder;
 import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
@@ -17,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 
@@ -29,12 +32,15 @@ import static org.mockito.Mockito.*;
  */
 @DisplayName("ReviewOrchestrator 审查编排单元测试")
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ReviewOrchestratorTest {
 
     @Mock
     private GitHubClient gitHubClient;
     @Mock
     private ChatModel modelA;
+    @Mock
+    private ContextBuilder contextBuilder;
 
     private SecurityPrompt securityPrompt;
     private TierClassifier tierClassifier;
@@ -56,7 +62,8 @@ class ReviewOrchestratorTest {
         tierClassifier = spy(new TierClassifier(tierProperties));
         gitHubProperties = new GitHubProperties();
         gitHubProperties.setInstallationId(INSTALLATION_ID);
-        orchestrator = new ReviewOrchestrator(gitHubClient, modelA, securityPrompt, tierClassifier, gitHubProperties);
+        orchestrator = new ReviewOrchestrator(gitHubClient, modelA, securityPrompt, tierClassifier, gitHubProperties, contextBuilder);
+        when(contextBuilder.build(anyString(), anyString(), anyString(), anyString())).thenReturn(DIFF);
     }
 
     // ==================== Webhook 异步模式 ====================

@@ -1,18 +1,17 @@
 package io.github.spojchil.proverlap.review;
 
-import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
+import io.github.spojchil.proverlap.context.ContextBuilder;
 import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
 import io.github.spojchil.proverlap.review.prompts.SecurityPrompt;
 import io.github.spojchil.proverlap.tier.TierClassifier;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +39,7 @@ public class ReviewOrchestrator {
     private final SecurityPrompt securityPrompt;
     private final TierClassifier tierClassifier;
     private final GitHubProperties gitHubProperties;
+    private final ContextBuilder contextBuilder;
 
     /**
      * 异步触发审查链路（Webhook 模式）。
@@ -61,7 +61,7 @@ public class ReviewOrchestrator {
                 return;
             }
 
-            String result = doReview(diff);
+            String result = doReview(diff, owner, repo, payload.getPrNumber());
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
             gitHubClient.postReview(owner, repo, payload.getPrNumber(),
                     result, payload.getInstallationId());
@@ -104,10 +104,10 @@ public class ReviewOrchestrator {
                     .build();
         }
 
-        TierLevel tier = tierClassifier.classify(countLines(diff), extractFiles(diff));
+        TierLevel tier = tierClassifier.classify(countLines(diff), ContextBuilder.extractFiles(diff));
         log.info("同步审查: {}/{} #{} → {}", owner, repo, prNumber, tier.getCode());
 
-        String findings = doReview(diff);
+        String findings = doReview(diff, owner, repo, prNumber);
         return ReviewResult.builder()
                 .owner(owner).repo(repo).prNumber(prNumber)
                 .tier(tier)
@@ -116,22 +116,13 @@ public class ReviewOrchestrator {
     }
 
     /** 调用 LLM 执行审查，返回原始输出 */
-    private String doReview(String diff) {
+    private String doReview(String diff, String owner, String repo, int prNumber) {
+        String ref = gitHubClient.getPrBranch(owner, repo, prNumber);
+        String context = contextBuilder.build(owner, repo, diff, ref != null ? ref : "");
         ChatResponse response = modelA.chat(List.of(
                 SystemMessage.from(securityPrompt.system()),
-                UserMessage.from("以下是 PR 的代码变更 (unified diff):\n\n```diff\n" + diff + "\n```")));
+                UserMessage.from(context)));
         return response.aiMessage().text();
-    }
-
-    /** 从 diff 文本中提取变更文件列表 */
-    private static List<String> extractFiles(String diff) {
-        List<String> files = new ArrayList<>();
-        for (String line : diff.split("\n")) {
-            if (line.startsWith("+++ b/")) {
-                files.add(line.substring(6));
-            }
-        }
-        return files;
     }
 
     /** diff 行数估算 */
