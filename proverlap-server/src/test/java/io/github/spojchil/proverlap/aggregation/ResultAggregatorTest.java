@@ -102,6 +102,23 @@ class ResultAggregatorTest {
         assertEquals(0, output.blockingCount());
     }
 
+    // ==================== 阻断计数 ====================
+
+    @Test
+    @DisplayName("aggregate — blockingCount 正确统计阻断数")
+    void blockingCountCorrect() {
+        Finding b1 = buildFinding("阻断", "src/A.java", 1, "b1", 0.9);
+        Finding b2 = buildFinding("阻断", "src/A.java", 10, "b2", 0.8);
+        Finding w1 = buildFinding("警告", "src/B.java", 1, "w1", 0.5);
+
+        DimensionResult r = DimensionResult.of("security", "", true, List.of(b1, b2, w1));
+        ResultAggregator.AggregationResult out = aggregator.aggregate(List.of(r));
+
+        assertEquals(2, out.blockingCount());
+        assertTrue(out.text().contains("2 阻断"));
+        assertTrue(out.text().contains("1 警告"));
+    }
+
     // ==================== 同问题判定 ====================
 
     @Test

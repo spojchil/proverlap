@@ -155,6 +155,34 @@ class ContextBuilderTest {
         assertEquals(content, ContextBuilder.trimLines(content, 5));
     }
 
+    // ==================== 修复验证 ====================
+
+    @Test
+    @DisplayName("build — diff 为 null 不抛异常")
+    void nullDiffDoesNotThrow() {
+        when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(null);
+        String result = builder.build(OWNER, REPO, null, "");
+        assertNotNull(result);
+        assertTrue(result.contains("unified diff"));
+    }
+
+    @Test
+    @DisplayName("extractFiles — 过滤 .. 路径")
+    void extractFilesFiltersPathTraversal() {
+        String diff = "diff --git a/../etc b/../etc\n+++ b/../etc\n+x\n"
+                + "diff --git a/Foo.java b/Foo.java\n+++ b/Foo.java\n+ok";
+        List<String> files = ContextBuilder.extractFiles(diff);
+        assertEquals(1, files.size());
+    }
+
+    @Test
+    @DisplayName("isCodeFile — 无扩展名返回 false")
+    void isCodeFileNoExtension() {
+        assertFalse(ContextBuilder.isCodeFile("Dockerfile"));
+        assertFalse(ContextBuilder.isCodeFile("Makefile"));
+    }
+
     // ==================== 组装内容包含 diff ====================
 
     @Test
