@@ -40,7 +40,7 @@ def review(pr_url: str, server: str) -> None:
             f"{server}/api/review",
             json={"prUrl": pr_url},
             verify=False,
-            timeout=300,
+            timeout=600,
         )
         result = resp.json()
     except requests.RequestException as e:
