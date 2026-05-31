@@ -70,6 +70,66 @@
 
 ---
 
+## 2026-05-30 · JSON 结构化输出替代 Markdown 正则解析
+
+**背景**：LLM 审查输出原本是 Markdown 格式（`> **阻断** \`文件\` L行号 — 标题`），用正则解析为结构化 Finding。存在三个问题：(1) 模型可能不遵守格式；(2) 正则解析脆弱；(3) 截断时解析失败静默丢失发现。
+
+**决策**：全部 Prompt 输出统一为 JSON 格式 `{"findings":[...]}`，通过 `response_format: json_object` 确保合规。`FindingParser` 用 Jackson `readTree()` 替代正则。
+
+**原因**：
+- DeepSeek / mimo 均支持 OpenAI 兼容的 `response_format: json_object`
+- JSON 结构化输出比正则解析可靠一个数量级
+- 即使截断也可尝试部分解析
+
+**影响**：`FindingParser` 从 98 行正则逻辑缩减为 68 行 Jackson 解析。`LLMConfig` 两个 builder 均加 `.responseFormat(ResponseFormat.JSON)`。
+
+---
+
+## 2026-05-30 · 维度 × 模型矩阵 — PR 类型驱动审查维度激活
+
+**背景**：不同 PR 类型（feat/fix/perf/docs...）的审查需求不同。fix PR 无需审查设计维度，docs PR 无需任何代码审查。全维度全模型对文档 PR 是资源浪费。
+
+**决策**：`DimensionReviewer` 维护一个硬编码的维度×模型矩阵：`feat`→5 维度（2 个双模型 CV），`fix`→2 维度（全部 CV），`docs`→0。PR 标题解析 Conventional Commits 前缀自动选择。
+
+**原因**：
+- PR 标题规范度高（大部分项目遵循 Conventional Commits），解析成本为零
+- 矩阵内聚在 `DimensionReviewer` 中，新增 PR 类型只需加一行 Map entry
+- 安全+正确性始终双模型 CV，其余维度单模型覆盖——每一分钱都花在刀刃上
+
+**影响**：`DimensionReviewer.buildMatrix()` 定义 10 种 PR 类型的维度映射。
+
+---
+
+## 2026-05-30 · 阻断判定从文本搜索改为结构化计数
+
+**背景**：`BLOCK_ON_FINDINGS` 模式原本用 `formattedOutput.contains("**阻断**")` 判断是否有阻断级发现。Prompt 模板中的 JSON 示例 `"severity": "阻断"` 导致**永远误判为 failure**。
+
+**决策**：`ReviewOutcome` 记录从 `List<Finding>` 直接统计的阻断数。`BLOCK_UNTIL_REVIEWED` 始终 success，`BLOCK_ON_FINDINGS` 仅 `blockingCount > 0` 时 failure。
+
+**原因**：
+- `DimensionResult.findings` 已包含结构化 Finding 对象，直接统计零成本
+- 删除 `determineConclusion()` 方法和正则代码，简化架构
+- `BLOCK_UNTIL_REVIEWED` 的语义是"审查跑过就放行"，不应检查阻断
+
+**影响**：`ReviewOrchestrator` 新增 `ReviewOutcome` record。`ResultAggregator` 返回 `AggregationResult(text, blockingCount)`。
+
+---
+
+## 2026-05-30 · 双认证渠道 — Installation Token + PAT
+
+**背景**：API 模式原先必须配置完整的 GitHub App（App ID + 私钥 + Installation ID），门槛过高。用户只想试一把公开仓库的审查，不应需要注册 GitHub App。
+
+**决策**：`GitHubClient` 支持两个认证渠道：(1) GitHub App Installation Token（Webhook 模式，自动注入）；(2) Personal Access Token（API 模式，配置 `GITHUB_TOKEN` 即可）。渠道 1 失败自动回退渠道 2。
+
+**原因**：
+- PAT 生成只需 30 秒（Settings → Developer settings → Tokens），门槛极低
+- 公开仓库 PAT 仅需 `public_repo` 权限，零安全风险
+- Installation Token 仍是 Webhook 模式首选（无需用户手动配置）
+
+**影响**：`.env.example` 分为"方式一 PAT"和"方式二 GitHub App"。`GitHubClient` 所有 API 方法均有双通道重载。
+
+---
+
 ## 模板
 
 ```markdown
