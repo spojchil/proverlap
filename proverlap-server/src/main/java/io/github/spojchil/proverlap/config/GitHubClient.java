@@ -200,11 +200,14 @@ public class GitHubClient {
         try {
             String uri = "/repos/{owner}/{repo}/contents/{path}";
             if (ref != null) uri += "?ref=" + ref;
-            return restClient.get()
+            String raw = restClient.get()
                     .uri(uri, owner, repo, path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .retrieve()
                     .body(String.class);
+            // Content API 返回 JSON wrapper，需要解析 content 字段并 Base64 解码
+            return new String(Base64.getDecoder().decode(
+                    objectMapper.readTree(raw).path("content").asText()), StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.info("仓库文件不存在: {}/{}", repo, path);
             return null;
@@ -293,13 +296,18 @@ public class GitHubClient {
     /** 获取安装访问令牌（优先从缓存读取） */
     private String obtainToken(long installationId) {
         CachedToken cached = tokenCache.get(installationId);
-        if (cached != null && !cached.isExpired()) {
-            return cached.token;
+        if (cached != null && !cached.isExpired()) return cached.token();
+
+        // DCL：同一安装 ID 只允许一个线程刷新令牌，其他线程拿到刷新后的令牌直接返回
+        synchronized (tokenCache) {
+            cached = tokenCache.get(installationId);
+            if (cached != null && !cached.isExpired()) return cached.token();
+
+            String jwt = generateJwt();
+            String token = requestInstallationToken(jwt, installationId);
+            tokenCache.put(installationId, new CachedToken(token, Instant.now().plus(TOKEN_CACHE_TTL)));
+            return token;
         }
-        String jwt = generateJwt();
-        String token = requestInstallationToken(jwt, installationId);
-        tokenCache.put(installationId, new CachedToken(token, Instant.now().plus(TOKEN_CACHE_TTL)));
-        return token;
     }
 
     /** 使用 JWT 向 GitHub API 请求安装访问令牌 */
