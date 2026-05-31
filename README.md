@@ -6,6 +6,11 @@
 [![Java](https://img.shields.io/badge/Java-21-blue)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-green)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![Demo](https://img.shields.io/badge/Demo-bilibili-00A1D6)](https://www.bilibili.com/video/BV1bgVS6dETQ/)
+
+## Demo 演示
+
+[![PRoverlap Demo](https://img.shields.io/badge/B站-观看演示视频-00A1D6?logo=bilibili)](https://www.bilibili.com/video/BV1bgVS6dETQ/)
 
 ## 目录
 
@@ -73,15 +78,12 @@ docker compose up -d
 ```
 
 ```bash
-# CLI 审查公开 PR（无需安装 App，四平台脚本）
+# CLI 审查公开 PR（无需安装 App）
 pip install -r scripts/requirements.txt
-python scripts/review.py https://github.com/owner/repo/pull/1   # 推荐
-./scripts/review.sh <URL>       # Linux/macOS
-review.bat <URL>                # Windows CMD
-.\review.ps1 <URL>              # Windows PowerShell
+python scripts/review.py https://github.com/owner/repo/pull/1
 ```
 
-> **注意**：国内网络环境下，Python 脚本通过 PyOpenSSL 注入绕过 TLS 指纹阻断。Windows CMD/PowerShell 如遇 TLS 连接失败，请使用 Python 版。
+> **注意**：国内网络环境下，通过 PyOpenSSL 注入绕过 TLS 指纹阻断。
 
 ## 核心特性
 
@@ -159,7 +161,7 @@ Java 21 · Spring Boot 4.0.6 · LangChain4j 1.15 · PostgreSQL 16 · Redis · Do
 │       ├── output/                # API 审查端点
 │       ├── config/                # LLM / GitHub / 异步配置
 │       └── model/                 # DTO / 枚举 / 实体
-├── scripts/                       # CLI 脚本（py / bash / bat / ps1）
+├── scripts/                       # CLI 脚本
 ├── docs/                          # 设计文档 + 决策记录
 ├── docker-compose.yml
 └── README.md
