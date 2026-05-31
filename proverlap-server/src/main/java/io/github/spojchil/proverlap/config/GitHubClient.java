@@ -45,6 +45,7 @@ public class GitHubClient {
     private final RestClient restClient;
     private final GitHubProperties props;
     private final ObjectMapper objectMapper;
+    /** 安装令牌缓存 — ConcurrentHashMap 保证 get/put 可见性，synchronized 保证刷新原子性 */
     private final Map<Long, CachedToken> tokenCache = new ConcurrentHashMap<>();
 
     public GitHubClient(RestClient.Builder restClientBuilder, GitHubProperties props) {
@@ -200,11 +201,14 @@ public class GitHubClient {
         try {
             String uri = "/repos/{owner}/{repo}/contents/{path}";
             if (ref != null) uri += "?ref=" + ref;
-            return restClient.get()
+            String raw = restClient.get()
                     .uri(uri, owner, repo, path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                     .retrieve()
                     .body(String.class);
+            // Content API 返回 JSON wrapper，需要解析 content 字段并 Base64 解码
+            return new String(Base64.getDecoder().decode(
+                    objectMapper.readTree(raw).path("content").asText()), StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.info("仓库文件不存在: {}/{}", repo, path);
             return null;
@@ -290,16 +294,25 @@ public class GitHubClient {
 
     // ==================== 令牌管理 ====================
 
-    /** 获取安装访问令牌（优先从缓存读取） */
+    /**
+     * 获取安装访问令牌（优先从缓存读取）。
+     * <p>
+     * tokenCache 为 ConcurrentHashMap，快速路径无锁读支持多 PR 真正并发。
+     * DCL + synchronized：get+put 非原子，同一 installationId 只有一个线程刷新令牌。
+     */
     private String obtainToken(long installationId) {
         CachedToken cached = tokenCache.get(installationId);
-        if (cached != null && !cached.isExpired()) {
-            return cached.token;
+        if (cached != null && !cached.isExpired()) return cached.token();
+
+        synchronized (tokenCache) {
+            cached = tokenCache.get(installationId);
+            if (cached != null && !cached.isExpired()) return cached.token();
+
+            String jwt = generateJwt();
+            String token = requestInstallationToken(jwt, installationId);
+            tokenCache.put(installationId, new CachedToken(token, Instant.now().plus(TOKEN_CACHE_TTL)));
+            return token;
         }
-        String jwt = generateJwt();
-        String token = requestInstallationToken(jwt, installationId);
-        tokenCache.put(installationId, new CachedToken(token, Instant.now().plus(TOKEN_CACHE_TTL)));
-        return token;
     }
 
     /** 使用 JWT 向 GitHub API 请求安装访问令牌 */

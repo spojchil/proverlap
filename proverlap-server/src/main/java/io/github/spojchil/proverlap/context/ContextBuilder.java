@@ -43,6 +43,7 @@ public class ContextBuilder {
      */
     public String build(String owner, String repo, String diff, String ref) {
         StringBuilder ctx = new StringBuilder();
+        if (diff == null) diff = "";
 
         // 1. 项目规范文件
         appendSpecFiles(owner, repo, ctx, ref);
@@ -110,7 +111,11 @@ public class ContextBuilder {
         List<String> files = new ArrayList<>();
         for (String line : diff.split("\n")) {
             if (line.startsWith("+++ b/")) {
-                files.add(line.substring(6));
+                String path = line.substring(6);
+                // 过滤含 .. 的路径，防止路径遍历
+                if (!path.contains("..")) {
+                    files.add(path);
+                }
             }
         }
         return files;
@@ -119,7 +124,8 @@ public class ContextBuilder {
     /** 是否为代码文件 */
     static boolean isCodeFile(String path) {
         int dot = path.lastIndexOf('.');
-        return dot >= 0 && CODE_EXTENSIONS.contains(path.substring(dot).toLowerCase());
+        if (dot < 0) return false; // 无扩展名（如 Dockerfile、Makefile）
+        return CODE_EXTENSIONS.contains(path.substring(dot).toLowerCase());
     }
 
     /** 截取前 N 行 */

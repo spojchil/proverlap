@@ -168,7 +168,7 @@ Java 21 · Spring Boot 4.0.6 · LangChain4j 1.15 · PostgreSQL 16 · Redis · Do
 | 文档 | 说明 |
 |------|------|
 | [贡献指南](CONTRIBUTING.md) | 分支策略、Commit 规范、PR 流程 |
-| [审查维度设计](docs/dimension-design.md) | 七层维度体系 + 维度×模型矩阵 + PR 类型联动 |
+| [审查维度设计](docs/dimension-design.md) | 六层维度体系 + 维度×模型矩阵 + PR 类型联动 |
 | [项目设计](docs/project-design.md) | 完整设计文档 |
 | [架构决策](docs/decisions.md) | 关键选型理由与演化记录 |
 
