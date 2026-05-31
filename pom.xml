@@ -6,7 +6,7 @@
 
     <groupId>io.github.spojchil</groupId>
     <artifactId>proverlap</artifactId>
-    <version>1.0.1</version>
+    <version>1.1.0</version>
     <packaging>pom</packaging>
     <name>PRoverlap</name>
     <description>多模型交叉审查 GitHub Pull Request</description>

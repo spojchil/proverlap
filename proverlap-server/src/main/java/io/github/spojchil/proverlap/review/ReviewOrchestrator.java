@@ -1,5 +1,9 @@
 package io.github.spojchil.proverlap.review;
 
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.aggregation.ResultAggregator;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
@@ -8,16 +12,19 @@ import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.ReviewMode;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.spojchil.proverlap.review.prompts.PrSummaryPrompt;
 import io.github.spojchil.proverlap.tier.TierClassifier;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
  * 审查编排器 — 多维度审查 + 双模型交叉验证 + Check Run + API 审查。
- * <p>
- * PR 标题驱动维度激活（feat→5维, fix→2维），DimensionReviewer 按 Tier 调度模型。
  */
 @Slf4j
 @Service
@@ -29,19 +36,27 @@ public class ReviewOrchestrator {
     private final ContextBuilder contextBuilder;
     private final DimensionReviewer dimensionReviewer;
     private final ResultAggregator resultAggregator;
+    @Qualifier("modelA")
+    private final ChatModel modelA;
+    private final PrSummaryPrompt prSummaryPrompt;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ReviewOrchestrator(GitHubClient gitHubClient,
                               TierClassifier tierClassifier,
                               GitHubProperties gitHubProperties,
                               ContextBuilder contextBuilder,
                               DimensionReviewer dimensionReviewer,
-                              ResultAggregator resultAggregator) {
+                              ResultAggregator resultAggregator,
+                              @Qualifier("modelA") ChatModel modelA,
+                              PrSummaryPrompt prSummaryPrompt) {
         this.gitHubClient = gitHubClient;
         this.tierClassifier = tierClassifier;
         this.gitHubProperties = gitHubProperties;
         this.contextBuilder = contextBuilder;
         this.dimensionReviewer = dimensionReviewer;
         this.resultAggregator = resultAggregator;
+        this.modelA = modelA;
+        this.prSummaryPrompt = prSummaryPrompt;
     }
 
     /**
@@ -74,14 +89,23 @@ public class ReviewOrchestrator {
                 return;
             }
 
-            ReviewOutcome outcome = doMultiDimensionReview(diff, payload.getPrTitle(),
-                    owner, repo, payload.getPrNumber());
+            // 并行：审查 + 变更摘要
+            List<String> files = ContextBuilder.extractFiles(diff);
+            CompletableFuture<ReviewOutcome> reviewFuture = CompletableFuture.supplyAsync(
+                    () -> doMultiDimensionReview(diff, payload.getPrTitle(), owner, repo, payload.getPrNumber(), files));
+            CompletableFuture<String> summaryFuture = CompletableFuture.supplyAsync(
+                    () -> generateSummary(payload.getPrTitle(), payload.getPrDescription(), files));
+
+            ReviewOutcome outcome = reviewFuture.join();
+            String prSummary = "";
+            try { prSummary = summaryFuture.join(); } catch (Exception e) {
+                log.warn("PR 摘要生成失败: {}", e.getMessage());
+            }
+
             log.info("审查完成: {} #{}", payload.getFullName(), payload.getPrNumber());
 
-            String summary = extractSummary(outcome.result());
-            String comment = summary
-                    + "\n\n> 详细信息见 [Checks](https://github.com/" + payload.getFullName()
-                    + "/pull/" + payload.getPrNumber() + "/checks) 标签页";
+            String comment = buildComment(prSummary, outcome.result(),
+                    payload.getFullName(), payload.getPrNumber(), mode);
             gitHubClient.postReview(owner, repo, payload.getPrNumber(), comment, instId);
 
             if (checkRunId != null) {
@@ -90,7 +114,7 @@ public class ReviewOrchestrator {
                         ? "failure" : "success";
                 finishCheckRun(owner, repo, checkRunId, conclusion,
                         "审查完成 · " + (conclusion.equals("failure") ? "发现阻断问题" : "无阻断"),
-                        outcome.result(), instId);
+                        prSummary + "\n\n---\n\n" + outcome.result(), instId);
             }
 
         } catch (Exception e) {
@@ -104,8 +128,6 @@ public class ReviewOrchestrator {
 
     /**
      * 同步审查并返回结果文本（API 模式）。
-     * <p>
-     * API 模式下无 PR 标题，默认走"feat"全维度审查。
      */
     public ReviewResult reviewSync(String owner, String repo, int prNumber) {
         String diff;
@@ -127,24 +149,28 @@ public class ReviewOrchestrator {
                     .build();
         }
 
-        TierLevel tier = tierClassifier.classify(countLines(diff), ContextBuilder.extractFiles(diff));
+        List<String> files = ContextBuilder.extractFiles(diff);
+        TierLevel tier = tierClassifier.classify(countLines(diff), files);
         log.info("同步审查: {}/{} #{} → {}", owner, repo, prNumber, tier.getCode());
 
-        ReviewOutcome outcome = doMultiDimensionReview(diff, "", owner, repo, prNumber);
+        ReviewOutcome outcome = doMultiDimensionReview(diff, "", owner, repo, prNumber, files);
+        String prSummary = generateSummary("", "", files);
+
         return ReviewResult.builder()
                 .owner(owner).repo(repo).prNumber(prNumber)
                 .tier(tier)
-                .findings(outcome.result())
+                .findings(prSummary + "\n\n---\n\n" + outcome.result())
                 .build();
     }
 
     /** 多维度审查 + 双模型 CV + 格式化输出 */
     private ReviewOutcome doMultiDimensionReview(String diff, String prTitle,
-                                                  String owner, String repo, int prNumber) {
+                                                  String owner, String repo, int prNumber,
+                                                  List<String> files) {
         String ref = gitHubClient.getPrBranch(owner, repo, prNumber);
         String context = contextBuilder.build(owner, repo, diff, ref != null ? ref : "");
 
-        TierLevel tier = tierClassifier.classify(countLines(diff), ContextBuilder.extractFiles(diff));
+        TierLevel tier = tierClassifier.classify(countLines(diff), files);
         List<DimensionReviewer.DimensionResult> results =
                 dimensionReviewer.review(prTitle != null ? prTitle : "", context, tier);
 
@@ -154,6 +180,61 @@ public class ReviewOrchestrator {
 
     private record ReviewOutcome(String result, int blockingCount) {}
 
+    /** 生成 PR 变更摘要（单模型，轻量，30 秒超时） */
+    private String generateSummary(String prTitle, String prDescription, List<String> files) {
+        if (prTitle == null) prTitle = "";
+        if (prDescription == null) prDescription = "";
+        String fileList = files.isEmpty() ? "无" : String.join(", ", files);
+        String context = "PR 标题: " + prTitle + "\nPR 描述: " + prDescription
+                + "\n变更文件: " + fileList;
+
+        try {
+            ChatResponse response = modelA.chat(List.of(
+                    SystemMessage.from(prSummaryPrompt.system()),
+                    UserMessage.from(context)));
+            String raw = response.aiMessage().text();
+            return objectMapper.readTree(raw).path("summary").asText("");
+        } catch (Exception e) {
+            log.warn("PR 摘要调用失败: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    private String buildComment(String prSummary, String reviewText,
+                                 String fullName, int prNumber, ReviewMode mode) {
+        StringBuilder sb = new StringBuilder();
+        if (prSummary != null && !prSummary.isBlank()) {
+            sb.append(prSummary).append("\n\n");
+        }
+        sb.append(extractSummary(reviewText));
+
+        if (mode == ReviewMode.COMMENT_ONLY) {
+            // 仅评论模式：Checks 不可用，附加前 3 条严重发现
+            sb.append("\n\n---\n\n");
+            sb.append(extractTopFindings(reviewText, 3));
+        } else {
+            sb.append("\n\n> 详细信息见 [Checks](https://github.com/").append(fullName)
+                    .append("/pull/").append(prNumber).append("/checks) 标签页");
+        }
+        return sb.toString();
+    }
+
+    /** 从审查文本中提取前 N 条严重发现 */
+    private static String extractTopFindings(String reviewText, int max) {
+        StringBuilder sb = new StringBuilder("**主要发现**\n\n");
+        int count = 0;
+        for (String line : reviewText.split("\n")) {
+            if (line.contains("> **阻断**") || line.contains("> **警告**")) {
+                sb.append(line.trim()).append("\n");
+                if (++count >= max) break;
+            }
+        }
+        if (count == 0) {
+            sb.append("未发现重大问题。\n");
+        }
+        return sb.toString();
+    }
+
     private ReviewMode parseMode() {
         try {
             return ReviewMode.valueOf(gitHubProperties.getReviewMode());
@@ -162,6 +243,7 @@ public class ReviewOrchestrator {
             return ReviewMode.COMMENT_ONLY;
         }
     }
+
     private void finishCheckRun(String owner, String repo, long checkRunId, String conclusion,
                                  String title, String summary, long instId) {
         try {
@@ -176,7 +258,6 @@ public class ReviewOrchestrator {
         return (int) diff.lines().count();
     }
 
-    /** 从聚合结果中提取摘要（前 3 行） */
     private static String extractSummary(String result) {
         if (result == null || result.isBlank()) return "审查完成";
         String[] lines = result.split("\n");
@@ -188,4 +269,3 @@ public class ReviewOrchestrator {
         return sb.toString().trim();
     }
 }
-
