@@ -61,7 +61,9 @@ jobs:
       - name: 构建并推送镜像
         if: github.ref_name == 'main'
         run: |
-          docker compose build
+          # 生成临时 .env（docker-compose.yml 要求该文件存在，CI 构建不需要真实密钥）
+          touch .env
+          docker compose build --build-arg MIRROR_FLAG=
           docker tag ghcr.io/spojchil/proverlap:latest ghcr.io/spojchil/proverlap:${{ steps.version.outputs.version }}
           docker compose push
           docker push ghcr.io/spojchil/proverlap:${{ steps.version.outputs.version }}
