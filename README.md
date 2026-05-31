@@ -105,6 +105,8 @@ review.bat <URL>                # Windows CMD
 
 Check Run 包含完整审查报告，Review Comment 仅贴摘要。开发者可在 PR 的 **Checks** 标签页查看详情。
 
+> **推荐**：当前 `BLOCK_ON_FINDINGS` 模式仍有误报率，建议使用 `BLOCK_UNTIL_REVIEWED` 模式——审查完成前阻塞合并，但不根据审查结果强行拦截。设置方式：在 `.env` 中配置 `REVIEW_MODE=BLOCK_UNTIL_REVIEWED`。
+
 ## 工作原理
 
 PRoverlap 作为 GitHub App 安装到仓库后，每次 PR 事件触发时：
