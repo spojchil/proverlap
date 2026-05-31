@@ -35,4 +35,7 @@ public class WebhookPayload {
 
     /** PR 标题（用于解析 Conventional Commits 类型，如 "feat: 新增登录"） */
     private String prTitle;
+
+    /** PR 描述（用于生成变更摘要，可能为空） */
+    private String prDescription;
 }

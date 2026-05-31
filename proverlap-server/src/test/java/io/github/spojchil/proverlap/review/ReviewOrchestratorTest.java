@@ -1,5 +1,8 @@
 package io.github.spojchil.proverlap.review;
 
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.spojchil.proverlap.aggregation.ResultAggregator;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import io.github.spojchil.proverlap.config.GitHubProperties;
@@ -9,6 +12,7 @@ import io.github.spojchil.proverlap.model.dto.Finding;
 import io.github.spojchil.proverlap.model.dto.ReviewResult;
 import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
+import io.github.spojchil.proverlap.review.prompts.PrSummaryPrompt;
 import io.github.spojchil.proverlap.tier.TierClassifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 
@@ -28,6 +34,7 @@ import static org.mockito.Mockito.*;
  */
 @DisplayName("ReviewOrchestrator 审查编排单元测试")
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ReviewOrchestratorTest {
 
     @Mock
@@ -38,9 +45,12 @@ class ReviewOrchestratorTest {
     private ContextBuilder contextBuilder;
     @Mock
     private ResultAggregator resultAggregator;
+    @Mock
+    private ChatModel modelA;
 
     private TierClassifier tierClassifier;
     private GitHubProperties gitHubProperties;
+    private PrSummaryPrompt prSummaryPrompt;
     private ReviewOrchestrator orchestrator;
 
     private static final String OWNER = "test-owner";
@@ -57,9 +67,13 @@ class ReviewOrchestratorTest {
         tierClassifier = spy(new TierClassifier(tierProperties));
         gitHubProperties = new GitHubProperties();
         gitHubProperties.setInstallationId(INSTALLATION_ID);
+        prSummaryPrompt = new PrSummaryPrompt();
         orchestrator = new ReviewOrchestrator(
                 gitHubClient, tierClassifier, gitHubProperties, contextBuilder,
-                dimensionReviewer, resultAggregator);
+                dimensionReviewer, resultAggregator, modelA, prSummaryPrompt);
+        // 默认 PR 摘要返回空
+        doReturn(ChatResponse.builder().aiMessage(AiMessage.from("")).build())
+                .when(modelA).chat(anyList());
     }
 
     // ==================== Webhook 异步模式 ====================
