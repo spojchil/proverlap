@@ -45,6 +45,7 @@ public class GitHubClient {
     private final RestClient restClient;
     private final GitHubProperties props;
     private final ObjectMapper objectMapper;
+    /** 安装令牌缓存 — ConcurrentHashMap 保证 get/put 可见性，synchronized 保证刷新原子性 */
     private final Map<Long, CachedToken> tokenCache = new ConcurrentHashMap<>();
 
     public GitHubClient(RestClient.Builder restClientBuilder, GitHubProperties props) {
@@ -293,12 +294,16 @@ public class GitHubClient {
 
     // ==================== 令牌管理 ====================
 
-    /** 获取安装访问令牌（优先从缓存读取） */
+    /**
+     * 获取安装访问令牌（优先从缓存读取）。
+     * <p>
+     * tokenCache 为 ConcurrentHashMap，快速路径无锁读支持多 PR 真正并发。
+     * DCL + synchronized：get+put 非原子，同一 installationId 只有一个线程刷新令牌。
+     */
     private String obtainToken(long installationId) {
         CachedToken cached = tokenCache.get(installationId);
         if (cached != null && !cached.isExpired()) return cached.token();
 
-        // DCL：同一安装 ID 只允许一个线程刷新令牌，其他线程拿到刷新后的令牌直接返回
         synchronized (tokenCache) {
             cached = tokenCache.get(installationId);
             if (cached != null && !cached.isExpired()) return cached.token();
