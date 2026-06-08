@@ -44,3 +44,4 @@ Thumbs.db
 .claude/plans/
 .claude/worktrees/
 *.local.md
+local_docs/
