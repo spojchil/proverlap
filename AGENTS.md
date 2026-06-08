@@ -77,11 +77,12 @@ docker compose up -d
 
 # 代码风格
 ./mvnw spotless:check
+./mvnw spotless:apply
 ```
 
 ## 代码风格
 
-- Java 代码遵循 Google Java Style Guide（通过 Spotless + google-java-format 自动格式化）
+- 4 空格缩进，K&R 大括号，google-java-format AOSP 风格，通过 Spotless 自动格式化
 - MyBatis-Plus 的 BaseMapper 提供内置 CRUD，无需 XML。Entity 继承 BaseEntity（createTime / updateTime / deletedAt 自动填充）
 - 包结构按**职责**（webhook / review / aggregation 等），而非按**层**（controller / service）
 - 配置类放在 `config/`，业务代码各司其职
