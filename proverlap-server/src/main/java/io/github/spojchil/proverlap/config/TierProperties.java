@@ -6,10 +6,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Tier 分级阈值配置。
- * <p>
- * Tier 分级器依据 PR diff 总行数判定审查深度：
- * Tier 1（快速通道）≤ t1MaxDiffLines，Tier 2（标准审查）≤ t2MaxDiffLines，
- * Tier 3（深度审查）> t2MaxDiffLines。
+ *
+ * <p>Tier 分级器依据 PR diff 总行数判定审查深度： Tier 1（快速通道）≤ t1MaxDiffLines，Tier 2（标准审查）≤ t2MaxDiffLines， Tier
+ * 3（深度审查）> t2MaxDiffLines。
  */
 @Data
 @Component

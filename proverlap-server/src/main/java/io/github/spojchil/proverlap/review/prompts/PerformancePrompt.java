@@ -4,8 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 性能审查 System Prompt。
- * <p>
- * 检查 N+1 查询、不必要的大对象创建、阻塞 I/O、不合理的算法复杂度。
+ *
+ * <p>检查 N+1 查询、不必要的大对象创建、阻塞 I/O、不合理的算法复杂度。
  */
 @Component
 public class PerformancePrompt implements ReviewPrompt {

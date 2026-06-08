@@ -38,8 +38,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController {
 
     /** PR URL 正则: https://github.com/owner/repo/pull/number */
-    private static final Pattern PR_URL = Pattern.compile(
-            "https://github\\.com/([^/]+)/([^/]+)/pull/(\\d+)");
+    private static final Pattern PR_URL =
+            Pattern.compile("https://github\\.com/([^/]+)/([^/]+)/pull/(\\d+)");
 
     private final ReviewOrchestrator reviewOrchestrator;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -62,7 +62,10 @@ public class ReviewController {
         Matcher m = PR_URL.matcher(prUrl.trim());
         if (!m.matches()) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.failure("INVALID_URL", "PR URL 格式无效，期望 https://github.com/owner/repo/pull/N"));
+                    .body(
+                            ApiResponse.failure(
+                                    "INVALID_URL",
+                                    "PR URL 格式无效，期望 https://github.com/owner/repo/pull/N"));
         }
 
         String owner = m.group(1);
@@ -89,6 +92,7 @@ public class ReviewController {
         public static ApiResponse success(Object data) {
             return new ApiResponse(true, data, null, null);
         }
+
         public static ApiResponse failure(String errorCode, String message) {
             return new ApiResponse(false, null, errorCode, message);
         }

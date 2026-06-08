@@ -4,8 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 可维护性审查 System Prompt。
- * <p>
- * 检查命名清晰度、函数职责单一性、复杂度、死代码、注释质量。
+ *
+ * <p>检查命名清晰度、函数职责单一性、复杂度、死代码、注释质量。
  */
 @Component
 public class MaintainabilityPrompt implements ReviewPrompt {

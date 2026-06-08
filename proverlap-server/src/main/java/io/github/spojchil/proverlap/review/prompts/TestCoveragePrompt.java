@@ -4,8 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 测试覆盖审查 System Prompt。
- * <p>
- * 检查关键路径是否有测试、测试是否真正验证行为而非堆覆盖率。
+ *
+ * <p>检查关键路径是否有测试、测试是否真正验证行为而非堆覆盖率。
  */
 @Component
 public class TestCoveragePrompt implements ReviewPrompt {

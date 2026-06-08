@@ -4,8 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 逻辑正确性审查 System Prompt。
- * <p>
- * 检查逻辑错误、边界条件遗漏、并发竞争、异常处理缺失、死分支等。
+ *
+ * <p>检查逻辑错误、边界条件遗漏、并发竞争、异常处理缺失、死分支等。
  */
 @Component
 public class CorrectnessPrompt implements ReviewPrompt {

@@ -4,9 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 安全审查维度 System Prompt。
- * <p>
- * 模型 A 的安全审查提示词，检查项从 OWASP Top 10 和常见 Java 安全漏洞中提取。
- * User Prompt 为 diff 文本，由调用方拼接。
+ *
+ * <p>模型 A 的安全审查提示词，检查项从 OWASP Top 10 和常见 Java 安全漏洞中提取。 User Prompt 为 diff 文本，由调用方拼接。
  */
 @Component
 public class SecurityPrompt implements ReviewPrompt {

@@ -9,5 +9,4 @@ public class ProverlapApplication {
     public static void main(String[] args) {
         SpringApplication.run(ProverlapApplication.class, args);
     }
-
 }

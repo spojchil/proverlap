@@ -8,16 +8,14 @@ import org.springframework.stereotype.Component;
 
 /**
  * 审查结果聚合器。
- * <p>
- * 多维度审查结果汇总：去重（同文件同行号同严重度）→ 排序（阻断>警告>建议）
- * → 标注来源（双模型共识/分歧/单模型）。
+ *
+ * <p>多维度审查结果汇总：去重（同文件同行号同严重度）→ 排序（阻断>警告>建议） → 标注来源（双模型共识/分歧/单模型）。
  */
 @Slf4j
 @Component
 public class ResultAggregator {
 
-    private static final Map<String, Integer> SEVERITY_ORDER = Map.of(
-            "阻断", 0, "警告", 1, "建议", 2);
+    private static final Map<String, Integer> SEVERITY_ORDER = Map.of("阻断", 0, "警告", 1, "建议", 2);
 
     /** 聚合结果：Markdown 文本 + 去重后的阻断计数 */
     public record AggregationResult(String text, int blockingCount) {}
@@ -29,8 +27,7 @@ public class ResultAggregator {
      * @return 聚合结果（文本 + 去重阻断计数）
      */
     public AggregationResult aggregate(List<DimensionResult> results) {
-        if (results == null || results.isEmpty())
-            return new AggregationResult("审查未发现需要关注的维度。", 0);
+        if (results == null || results.isEmpty()) return new AggregationResult("审查未发现需要关注的维度。", 0);
 
         // 1. 收集所有 Findings + 去重
         List<Finding> allFindings = new ArrayList<>();
@@ -42,10 +39,11 @@ public class ResultAggregator {
         List<Finding> deduped = new ArrayList<>(deduplicate(allFindings));
 
         // 2. 排序
-        deduped.sort(Comparator
-                .comparingInt((Finding f) -> SEVERITY_ORDER.getOrDefault(f.getSeverity(), 3))
-                .thenComparing(Finding::getFile)
-                .thenComparingInt(Finding::getLine));
+        deduped.sort(
+                Comparator.comparingInt(
+                                (Finding f) -> SEVERITY_ORDER.getOrDefault(f.getSeverity(), 3))
+                        .thenComparing(Finding::getFile)
+                        .thenComparingInt(Finding::getLine));
 
         // 3. 统计
         long blocking = deduped.stream().filter(f -> "阻断".equals(f.getSeverity())).count();
@@ -57,10 +55,13 @@ public class ResultAggregator {
         // 4. 格式化输出
         StringBuilder sb = new StringBuilder();
         sb.append("## 审查总结\n");
-        sb.append(blocking).append(" 阻断 · ").append(warning).append(" 警告 · ")
-                .append(suggestion).append(" 建议");
-        sb.append(" | ").append(cvCount).append(" 双模型交叉验证 · ")
-                .append(singleCount).append(" 单模型\n");
+        sb.append(blocking)
+                .append(" 阻断 · ")
+                .append(warning)
+                .append(" 警告 · ")
+                .append(suggestion)
+                .append(" 建议");
+        sb.append(" | ").append(cvCount).append(" 双模型交叉验证 · ").append(singleCount).append(" 单模型\n");
         sb.append("\n---\n\n");
 
         // 按维度输出（保持原始顺序）
@@ -74,8 +75,8 @@ public class ResultAggregator {
 
     /**
      * 去重：同文件 + 行号邻近(±5行) + 同严重度 → 保留置信度最高的。
-     * <p>
-     * 严重度不同不算重复（阻断和警告可能是同一行的不同问题）。
+     *
+     * <p>严重度不同不算重复（阻断和警告可能是同一行的不同问题）。
      */
     List<Finding> deduplicate(List<Finding> findings) {
         if (findings.size() <= 1) return new ArrayList<>(findings);

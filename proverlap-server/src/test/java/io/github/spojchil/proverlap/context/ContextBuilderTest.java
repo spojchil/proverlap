@@ -1,5 +1,9 @@
 package io.github.spojchil.proverlap.context;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
+
 import io.github.spojchil.proverlap.config.ContextProperties;
 import io.github.spojchil.proverlap.config.GitHubClient;
 import java.util.List;
@@ -12,30 +16,23 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.any;
-
-/**
- * ContextBuilder 上下文组装单元测试。
- */
+/** ContextBuilder 上下文组装单元测试。 */
 @DisplayName("ContextBuilder 上下文组装单元测试")
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ContextBuilderTest {
 
-    @Mock
-    private GitHubClient gitHubClient;
+    @Mock private GitHubClient gitHubClient;
 
     private ContextBuilder builder;
 
     private static final String OWNER = "test";
     private static final String REPO = "repo";
-    private static final String DIFF = "diff --git a/src/Foo.java b/src/Foo.java\n"
-            + "--- a/src/Foo.java\n"
-            + "+++ b/src/Foo.java\n"
-            + "+return calc(a, b, c);\n";
+    private static final String DIFF =
+            "diff --git a/src/Foo.java b/src/Foo.java\n"
+                    + "--- a/src/Foo.java\n"
+                    + "+++ b/src/Foo.java\n"
+                    + "+return calc(a, b, c);\n";
 
     @BeforeEach
     void setUp() {
@@ -92,16 +89,16 @@ class ContextBuilderTest {
     @Test
     @DisplayName("build — 非代码文件不拉取完整内容")
     void skipsNonCodeFiles() {
-        String mdDiff = "diff --git a/README.md b/README.md\n"
-                + "--- a/README.md\n+++ b/README.md\n+updated\n";
+        String mdDiff =
+                "diff --git a/README.md b/README.md\n"
+                        + "--- a/README.md\n+++ b/README.md\n+updated\n";
 
         when(gitHubClient.getRepoFile(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
         String result = builder.build(OWNER, REPO, mdDiff, "");
 
-        assertFalse(result.contains("变更文件完整内容"),
-                "README.md 不应拉取完整内容");
+        assertFalse(result.contains("变更文件完整内容"), "README.md 不应拉取完整内容");
     }
 
     // ==================== 工具方法 ====================
@@ -170,8 +167,9 @@ class ContextBuilderTest {
     @Test
     @DisplayName("extractFiles — 过滤 .. 路径")
     void extractFilesFiltersPathTraversal() {
-        String diff = "diff --git a/../etc b/../etc\n+++ b/../etc\n+x\n"
-                + "diff --git a/Foo.java b/Foo.java\n+++ b/Foo.java\n+ok";
+        String diff =
+                "diff --git a/../etc b/../etc\n+++ b/../etc\n+x\n"
+                        + "diff --git a/Foo.java b/Foo.java\n+++ b/Foo.java\n+ok";
         List<String> files = ContextBuilder.extractFiles(diff);
         assertEquals(1, files.size());
     }

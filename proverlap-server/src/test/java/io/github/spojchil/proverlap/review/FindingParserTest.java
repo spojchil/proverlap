@@ -1,16 +1,13 @@
 package io.github.spojchil.proverlap.review;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import io.github.spojchil.proverlap.model.dto.Finding;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-/**
- * FindingParser JSON 解析单元测试。
- */
+/** FindingParser JSON 解析单元测试。 */
 @DisplayName("FindingParser JSON 解析单元测试")
 class FindingParserTest {
 
@@ -19,7 +16,8 @@ class FindingParserTest {
     @Test
     @DisplayName("parse — 解析单个阻断发现")
     void parseSingleBlocking() {
-        String json = """
+        String json =
+                """
                 {
                   "findings": [
                     {"severity":"阻断","file":"src/AuthService.java","line":3,
@@ -44,7 +42,8 @@ class FindingParserTest {
     @Test
     @DisplayName("parse — 解析多个发现")
     void parseMultipleFindings() {
-        String json = """
+        String json =
+                """
                 {
                   "findings": [
                     {"severity":"阻断","file":"src/Foo.java","line":1,"title":"问题一","description":"描述一","suggestion":"修复一"},
@@ -65,7 +64,8 @@ class FindingParserTest {
     @Test
     @DisplayName("parse — 空 findings 数组返回空列表")
     void parseEmptyFindings() {
-        String json = """
+        String json =
+                """
                 {
                   "findings": [],
                   "summary": "未发现安全问题"
@@ -78,7 +78,8 @@ class FindingParserTest {
     @Test
     @DisplayName("parse — LLM 包裹 markdown 代码块仍可解析")
     void parseWithMarkdownWrapper() {
-        String text = """
+        String text =
+                """
                 以下是审查结果：
 
                 ```json
