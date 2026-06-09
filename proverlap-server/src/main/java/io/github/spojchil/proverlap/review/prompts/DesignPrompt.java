@@ -4,8 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 设计与架构审查 System Prompt。
- * <p>
- * 检查新代码是否破坏现有架构分层、引入不合理的耦合、使用错误的抽象。
+ *
+ * <p>检查新代码是否破坏现有架构分层、引入不合理的耦合、使用错误的抽象。
  */
 @Component
 public class DesignPrompt implements ReviewPrompt {

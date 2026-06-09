@@ -4,9 +4,7 @@ import io.github.spojchil.proverlap.model.dto.CrossValidationResult;
 import io.github.spojchil.proverlap.model.dto.Finding;
 import org.springframework.stereotype.Component;
 
-/**
- * 将交叉比对结果格式化为 GitHub Review Comment 的 Markdown 文本。
- */
+/** 将交叉比对结果格式化为 GitHub Review Comment 的 Markdown 文本。 */
 @Component
 public class CrossValidationCommentFormatter {
 
@@ -26,9 +24,17 @@ public class CrossValidationCommentFormatter {
         if (!result.getDivergences().isEmpty()) {
             sb.append("### 分歧 — 需人类判断 (").append(result.getDivergences().size()).append(")\n\n");
             for (CrossValidationResult.FindingPair pair : result.getDivergences()) {
-                sb.append("> `").append(pair.getFile()).append("` L").append(pair.getLine()).append("\n");
-                sb.append("> DeepSeek: ").append(truncate(pair.getModelA().getTitle(), 60)).append("\n");
-                sb.append("> mimo: ").append(truncate(pair.getModelB().getTitle(), 60)).append("\n\n");
+                sb.append("> `")
+                        .append(pair.getFile())
+                        .append("` L")
+                        .append(pair.getLine())
+                        .append("\n");
+                sb.append("> DeepSeek: ")
+                        .append(truncate(pair.getModelA().getTitle(), 60))
+                        .append("\n");
+                sb.append("> mimo: ")
+                        .append(truncate(pair.getModelB().getTitle(), 60))
+                        .append("\n\n");
             }
         }
 
@@ -49,8 +55,10 @@ public class CrossValidationCommentFormatter {
         }
 
         // 无发现
-        if (result.getConsensus().isEmpty() && result.getDivergences().isEmpty()
-                && result.getModelAOnly().isEmpty() && result.getModelBOnly().isEmpty()) {
+        if (result.getConsensus().isEmpty()
+                && result.getDivergences().isEmpty()
+                && result.getModelAOnly().isEmpty()
+                && result.getModelBOnly().isEmpty()) {
             sb.append("未发现安全问题。\n\n");
         }
 
@@ -59,9 +67,16 @@ public class CrossValidationCommentFormatter {
 
     private String formatFinding(Finding f, String suffix) {
         StringBuilder sb = new StringBuilder();
-        sb.append("> **").append(f.getSeverity()).append("** `")
-                .append(f.getFile()).append("` L").append(f.getLine())
-                .append(" — ").append(f.getTitle()).append(suffix).append("\n");
+        sb.append("> **")
+                .append(f.getSeverity())
+                .append("** `")
+                .append(f.getFile())
+                .append("` L")
+                .append(f.getLine())
+                .append(" — ")
+                .append(f.getTitle())
+                .append(suffix)
+                .append("\n");
         if (f.getDescription() != null && !f.getDescription().isBlank()) {
             sb.append("> ").append(f.getDescription()).append("\n");
         }

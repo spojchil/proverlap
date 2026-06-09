@@ -16,9 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * GitHub Webhook 接收端点。
- * <p>
- * 接收 GitHub 发送的 {@code pull_request} 事件，验签后提取 PR 关键信息。
- * 当前版本（P1）仅做验签 + 解析，审查链路由 P2 串联。
+ *
+ * <p>接收 GitHub 发送的 {@code pull_request} 事件，验签后提取 PR 关键信息。 当前版本（P1）仅做验签 + 解析，审查链路由 P2 串联。
  *
  * <pre>
  * POST /webhook/github
@@ -71,18 +70,22 @@ public class WebhookController {
             JsonNode repo = root.path("repository");
             JsonNode installation = root.path("installation");
 
-            WebhookPayload payload = WebhookPayload.builder()
-                    .action(action)
-                    .prNumber(pr.path("number").asInt())
-                    .fullName(repo.path("full_name").asText())
-                    .installationId(installation.path("id").asLong())
-                    .commitSha(pr.path("head").path("sha").asText())
-                    .prTitle(pr.path("title").asText())
-                    .prDescription(pr.path("body").asText(""))
-                    .build();
+            WebhookPayload payload =
+                    WebhookPayload.builder()
+                            .action(action)
+                            .prNumber(pr.path("number").asInt())
+                            .fullName(repo.path("full_name").asText())
+                            .installationId(installation.path("id").asLong())
+                            .commitSha(pr.path("head").path("sha").asText())
+                            .prTitle(pr.path("title").asText())
+                            .prDescription(pr.path("body").asText(""))
+                            .build();
 
-            log.info("收到 PR Webhook: {} #{}, action={}",
-                    payload.getFullName(), payload.getPrNumber(), payload.getAction());
+            log.info(
+                    "收到 PR Webhook: {} #{}, action={}",
+                    payload.getFullName(),
+                    payload.getPrNumber(),
+                    payload.getAction());
 
             reviewOrchestrator.review(payload);
 

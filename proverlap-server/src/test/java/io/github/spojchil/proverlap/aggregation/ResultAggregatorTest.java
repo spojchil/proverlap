@@ -1,17 +1,14 @@
 package io.github.spojchil.proverlap.aggregation;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import io.github.spojchil.proverlap.model.dto.Finding;
 import io.github.spojchil.proverlap.review.DimensionReviewer.DimensionResult;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-/**
- * ResultAggregator 聚合去重单元测试。
- */
+/** ResultAggregator 聚合去重单元测试。 */
 @DisplayName("ResultAggregator 聚合去重单元测试")
 class ResultAggregatorTest {
 
@@ -72,8 +69,10 @@ class ResultAggregatorTest {
         Finding f1 = buildFinding("警告", "src/Bar.java", 10, "b", 0.5);
         Finding f2 = buildFinding("阻断", "src/Auth.java", 42, "a", 0.9);
 
-        DimensionResult r1 = DimensionResult.of("security", "### security\nok", true, List.of(f1, f2));
-        DimensionResult r2 = DimensionResult.of("correctness", "### correctness\nok", true, List.of());
+        DimensionResult r1 =
+                DimensionResult.of("security", "### security\nok", true, List.of(f1, f2));
+        DimensionResult r2 =
+                DimensionResult.of("correctness", "### correctness\nok", true, List.of());
 
         ResultAggregator.AggregationResult output = aggregator.aggregate(List.of(r1, r2));
 
@@ -145,12 +144,17 @@ class ResultAggregatorTest {
         assertFalse(ResultAggregator.isSameFinding(a, b));
     }
 
-    private static Finding buildFinding(String severity, String file, int line,
-                                         String title, double confidence) {
+    private static Finding buildFinding(
+            String severity, String file, int line, String title, double confidence) {
         return Finding.builder()
-                .severity(severity).file(file).line(line)
-                .title(title).description("desc").suggestion("sug")
-                .modelSource("modelA").confidence(confidence)
+                .severity(severity)
+                .file(file)
+                .line(line)
+                .title(title)
+                .description("desc")
+                .suggestion("sug")
+                .modelSource("modelA")
+                .confidence(confidence)
                 .build();
     }
 }

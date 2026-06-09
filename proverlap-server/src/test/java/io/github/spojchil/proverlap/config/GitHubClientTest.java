@@ -1,24 +1,21 @@
 package io.github.spojchil.proverlap.config;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Signature;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Instant;
 import java.util.Base64;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * GitHubClient JWT 签名与私钥解析单元测试。
- * <p>
- * 测试 JWT RS256 签名生成、PKCS#8/PKCS#1 私钥解析、DER 二进制解析，
- * 不启动 Spring 上下文，不访问外部服务。
+ *
+ * <p>测试 JWT RS256 签名生成、PKCS#8/PKCS#1 私钥解析、DER 二进制解析， 不启动 Spring 上下文，不访问外部服务。
  */
 @DisplayName("GitHubClient JWT 签名与私钥解析单元测试")
 class GitHubClientTest {
@@ -39,13 +36,17 @@ class GitHubClientTest {
 
         // PKCS#8 格式 (PRIVATE KEY) — getEncoded() 返回的就是 PKCS#8
         byte[] pkcs8Bytes = keyPair.getPrivate().getEncoded();
-        pkcs8Pem = "-----BEGIN PRIVATE KEY-----\n"
-                + Base64.getEncoder().encodeToString(pkcs8Bytes)
-                + "\n-----END PRIVATE KEY-----";
+        pkcs8Pem =
+                "-----BEGIN PRIVATE KEY-----\n"
+                        + Base64.getEncoder().encodeToString(pkcs8Bytes)
+                        + "\n-----END PRIVATE KEY-----";
         // Pkcs1 测试使用 PKCS#8 字节 + PKCS#1 头（解析会按头判断格式，走 DER 解析）
-        pkcs1Pem = PKCS1_HEADER + "\n"
-                + Base64.getEncoder().encodeToString(pkcs8Bytes)
-                + "\n" + PKCS1_FOOTER;
+        pkcs1Pem =
+                PKCS1_HEADER
+                        + "\n"
+                        + Base64.getEncoder().encodeToString(pkcs8Bytes)
+                        + "\n"
+                        + PKCS1_FOOTER;
     }
 
     // ==================== 私钥解析 ====================
@@ -84,7 +85,8 @@ class GitHubClientTest {
     @Test
     @DisplayName("parsePrivateKey — 无效 PEM 抛 RuntimeException")
     void parseInvalidKey() {
-        assertThrows(RuntimeException.class,
+        assertThrows(
+                RuntimeException.class,
                 () -> GitHubClient.parsePrivateKey("not-a-key"),
                 "无法识别的格式应抛 RuntimeException");
     }
@@ -97,25 +99,23 @@ class GitHubClientTest {
         PrivateKey pk = GitHubClient.parsePrivateKey(pkcs8Pem);
         long now = Instant.now().getEpochSecond();
         String header = "{\"alg\":\"RS256\",\"typ\":\"JWT\"}";
-        String payload = "{\"iat\":" + now + ",\"exp\":" + (now + 600)
-                + ",\"iss\":\"" + APP_ID + "\"}";
-        String headerB64 = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(header.getBytes());
-        String payloadB64 = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(payload.getBytes());
+        String payload =
+                "{\"iat\":" + now + ",\"exp\":" + (now + 600) + ",\"iss\":\"" + APP_ID + "\"}";
+        String headerB64 =
+                Base64.getUrlEncoder().withoutPadding().encodeToString(header.getBytes());
+        String payloadB64 =
+                Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes());
         String toSign = headerB64 + "." + payloadB64;
 
         Signature sig = Signature.getInstance("SHA256withRSA");
         sig.initSign(pk);
         sig.update(toSign.getBytes());
-        String signatureB64 = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(sig.sign());
+        String signatureB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(sig.sign());
 
         Signature verifySig = Signature.getInstance("SHA256withRSA");
         verifySig.initVerify(keyPair.getPublic());
         verifySig.update(toSign.getBytes());
-        assertTrue(verifySig.verify(Base64.getUrlDecoder().decode(signatureB64)),
-                "JWT 签名应被公钥验证通过");
+        assertTrue(verifySig.verify(Base64.getUrlDecoder().decode(signatureB64)), "JWT 签名应被公钥验证通过");
     }
 
     @Test
@@ -124,19 +124,18 @@ class GitHubClientTest {
         PrivateKey pk = GitHubClient.parsePrivateKey(pkcs8Pem);
         long now = Instant.now().getEpochSecond();
         String header = "{\"alg\":\"RS256\",\"typ\":\"JWT\"}";
-        String payload = "{\"iat\":" + now + ",\"exp\":" + (now + 600)
-                + ",\"iss\":\"" + APP_ID + "\"}";
-        String headerB64 = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(header.getBytes());
-        String payloadB64 = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(payload.getBytes());
+        String payload =
+                "{\"iat\":" + now + ",\"exp\":" + (now + 600) + ",\"iss\":\"" + APP_ID + "\"}";
+        String headerB64 =
+                Base64.getUrlEncoder().withoutPadding().encodeToString(header.getBytes());
+        String payloadB64 =
+                Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes());
         String toSign = headerB64 + "." + payloadB64;
 
         Signature sig = Signature.getInstance("SHA256withRSA");
         sig.initSign(pk);
         sig.update(toSign.getBytes());
-        String signatureB64 = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(sig.sign());
+        String signatureB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(sig.sign());
 
         String jwt = headerB64 + "." + payloadB64 + "." + signatureB64;
         String[] parts = jwt.split("\\.");
@@ -174,7 +173,8 @@ class GitHubClientTest {
     void derWrongTag() {
         byte[] data = {0x30, 0x00};
         int[] pos = {0};
-        assertThrows(RuntimeException.class,
+        assertThrows(
+                RuntimeException.class,
                 () -> GitHubClient.readTag(data, pos, (byte) 0x02),
                 "期望 INTEGER(0x02) 但遇到 SEQUENCE(0x30)，应抛异常");
     }

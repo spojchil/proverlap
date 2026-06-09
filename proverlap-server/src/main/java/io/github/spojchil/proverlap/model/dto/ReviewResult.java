@@ -6,9 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * API 模式的审查结果。
- */
+/** API 模式的审查结果。 */
 @Data
 @Builder
 @NoArgsConstructor

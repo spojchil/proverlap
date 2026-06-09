@@ -47,7 +47,9 @@ def review(pr_url: str, server: str) -> None:
         print(f"请求失败: {e}")
         sys.exit(1)
     except json.JSONDecodeError:
-        print("响应不是有效的 JSON")
+        print(f"响应不是有效的 JSON (HTTP {resp.status_code})")
+        if resp.text:
+            print(f"响应内容: {resp.text[:500]}")
         sys.exit(1)
 
     if result.get("success"):

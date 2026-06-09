@@ -8,9 +8,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 双模型交叉比对器。
- * <p>
- * 将模型 A 和模型 B 的发现按文件路径 + 行号邻近度匹配，
- * 输出共识（双模型一致）、分歧（同位置观点不同）、单模型发现三组结果。
+ *
+ * <p>将模型 A 和模型 B 的发现按文件路径 + 行号邻近度匹配， 输出共识（双模型一致）、分歧（同位置观点不同）、单模型发现三组结果。
  */
 @Slf4j
 @Component
@@ -20,8 +19,7 @@ public class CrossValidator {
     private static final int LINE_TOLERANCE = 5;
 
     /** 严重度匹配映射 */
-    private static final Map<String, Integer> SEVERITY_WEIGHT = Map.of(
-            "阻断", 3, "警告", 2, "建议", 1);
+    private static final Map<String, Integer> SEVERITY_WEIGHT = Map.of("阻断", 3, "警告", 2, "建议", 1);
 
     /**
      * 比对模型 A 和 B 的发现。
@@ -58,19 +56,27 @@ public class CrossValidator {
 
                 if (bestScore >= 3) {
                     // 文件+行号+严重度都匹配 → 共识（创建新 Finding，不修改输入）
-                    Finding merged = Finding.builder()
-                            .severity(fa.getSeverity()).file(fa.getFile()).line(fa.getLine())
-                            .title(fa.getTitle()).description(fa.getDescription())
-                            .suggestion(fa.getSuggestion()).modelSource(fa.getModelSource())
-                            .confidence((fa.getConfidence() + fb.getConfidence()) / 2.0)
-                            .build();
+                    Finding merged =
+                            Finding.builder()
+                                    .severity(fa.getSeverity())
+                                    .file(fa.getFile())
+                                    .line(fa.getLine())
+                                    .title(fa.getTitle())
+                                    .description(fa.getDescription())
+                                    .suggestion(fa.getSuggestion())
+                                    .modelSource(fa.getModelSource())
+                                    .confidence((fa.getConfidence() + fb.getConfidence()) / 2.0)
+                                    .build();
                     consensus.add(merged);
                 } else {
                     // 文件+行号匹配但严重度或标题差异大 → 分歧
-                    divergences.add(CrossValidationResult.FindingPair.builder()
-                            .modelA(fa).modelB(fb)
-                            .file(fa.getFile()).line(fa.getLine())
-                            .build());
+                    divergences.add(
+                            CrossValidationResult.FindingPair.builder()
+                                    .modelA(fa)
+                                    .modelB(fb)
+                                    .file(fa.getFile())
+                                    .line(fa.getLine())
+                                    .build());
                 }
             } else {
                 modelAOnly.add(fa);
@@ -84,8 +90,12 @@ public class CrossValidator {
             }
         }
 
-        log.info("交叉比对完成: 共识={}, 分歧={}, A独有={}, B独有={}",
-                consensus.size(), divergences.size(), modelAOnly.size(), modelBOnly.size());
+        log.info(
+                "交叉比对完成: 共识={}, 分歧={}, A独有={}, B独有={}",
+                consensus.size(),
+                divergences.size(),
+                modelAOnly.size(),
+                modelBOnly.size());
 
         return CrossValidationResult.builder()
                 .consensus(consensus)
@@ -97,8 +107,8 @@ public class CrossValidator {
 
     /**
      * 计算两个发现的匹配分数。
-     * <p>
-     * 文件不同 → 0（不匹配）<br>
+     *
+     * <p>文件不同 → 0（不匹配）<br>
      * 行号不邻近 → 0（同一文件不同位置，视为不同发现）<br>
      * 行号邻近 → 2 + 严重度相同(+1) + 关键词匹配(+1)，满分 4<br>
      * ≥ 3 共识，= 2 分歧

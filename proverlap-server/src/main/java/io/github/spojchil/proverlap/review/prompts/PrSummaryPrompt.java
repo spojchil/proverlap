@@ -4,9 +4,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * PR 变更总结 System Prompt。
- * <p>
- * 用 2-3 句话概括 PR 做了什么改动，只描述事实不评价好坏。
- * 审查开始前并行调用，30 秒内返回。
+ *
+ * <p>用 2-3 句话概括 PR 做了什么改动，只描述事实不评价好坏。 审查开始前并行调用，30 秒内返回。
  */
 @Component
 public class PrSummaryPrompt implements ReviewPrompt {

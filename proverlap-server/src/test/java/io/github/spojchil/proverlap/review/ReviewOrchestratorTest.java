@@ -1,5 +1,9 @@
 package io.github.spojchil.proverlap.review;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -14,6 +18,7 @@ import io.github.spojchil.proverlap.model.dto.WebhookPayload;
 import io.github.spojchil.proverlap.model.enums.TierLevel;
 import io.github.spojchil.proverlap.review.prompts.PrSummaryPrompt;
 import io.github.spojchil.proverlap.tier.TierClassifier;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,30 +28,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-
-/**
- * ReviewOrchestrator 审查编排单元测试。
- */
+/** ReviewOrchestrator 审查编排单元测试。 */
 @DisplayName("ReviewOrchestrator 审查编排单元测试")
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ReviewOrchestratorTest {
 
-    @Mock
-    private GitHubClient gitHubClient;
-    @Mock
-    private DimensionReviewer dimensionReviewer;
-    @Mock
-    private ContextBuilder contextBuilder;
-    @Mock
-    private ResultAggregator resultAggregator;
-    @Mock
-    private ChatModel modelA;
+    @Mock private GitHubClient gitHubClient;
+    @Mock private DimensionReviewer dimensionReviewer;
+    @Mock private ContextBuilder contextBuilder;
+    @Mock private ResultAggregator resultAggregator;
+    @Mock private ChatModel modelA;
 
     private TierClassifier tierClassifier;
     private GitHubProperties gitHubProperties;
@@ -57,7 +49,8 @@ class ReviewOrchestratorTest {
     private static final String REPO = "test-repo";
     private static final int PR_NUMBER = 1;
     private static final long INSTALLATION_ID = 123L;
-    private static final String DIFF = "diff --git a/Foo.java b/Foo.java\n+password = \"secret\";\n";
+    private static final String DIFF =
+            "diff --git a/Foo.java b/Foo.java\n+password = \"secret\";\n";
 
     @BeforeEach
     void setUp() {
@@ -68,12 +61,20 @@ class ReviewOrchestratorTest {
         gitHubProperties = new GitHubProperties();
         gitHubProperties.setInstallationId(INSTALLATION_ID);
         prSummaryPrompt = new PrSummaryPrompt();
-        orchestrator = new ReviewOrchestrator(
-                gitHubClient, tierClassifier, gitHubProperties, contextBuilder,
-                dimensionReviewer, resultAggregator, modelA, prSummaryPrompt);
+        orchestrator =
+                new ReviewOrchestrator(
+                        gitHubClient,
+                        tierClassifier,
+                        gitHubProperties,
+                        contextBuilder,
+                        dimensionReviewer,
+                        resultAggregator,
+                        modelA,
+                        prSummaryPrompt);
         // 默认 PR 摘要返回空
         doReturn(ChatResponse.builder().aiMessage(AiMessage.from("")).build())
-                .when(modelA).chat(anyList());
+                .when(modelA)
+                .chat(anyList());
     }
 
     // ==================== Webhook 异步模式 ====================
@@ -87,14 +88,17 @@ class ReviewOrchestratorTest {
         when(contextBuilder.build(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
-                .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "fine", true)));
-        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("## 审查总结\nfine", 0));
+                .thenReturn(
+                        List.of(DimensionReviewer.DimensionResult.of("security", "fine", true)));
+        when(resultAggregator.aggregate(any()))
+                .thenReturn(new ResultAggregator.AggregationResult("## 审查总结\nfine", 0));
 
         WebhookPayload payload = buildPayload("feat: 新功能");
         orchestrator.review(payload);
 
-        verify(gitHubClient).postReview(eq(OWNER), eq(REPO), eq(PR_NUMBER),
-                contains("审查总结"), eq(INSTALLATION_ID));
+        verify(gitHubClient)
+                .postReview(
+                        eq(OWNER), eq(REPO), eq(PR_NUMBER), contains("审查总结"), eq(INSTALLATION_ID));
         verify(dimensionReviewer).review(eq("feat: 新功能"), eq("context"), any());
     }
 
@@ -107,7 +111,8 @@ class ReviewOrchestratorTest {
         orchestrator.review(buildPayload("fix: xxx"));
 
         verify(dimensionReviewer, never()).review(anyString(), anyString(), any());
-        verify(gitHubClient, never()).postReview(anyString(), anyString(), anyInt(), any(), anyLong());
+        verify(gitHubClient, never())
+                .postReview(anyString(), anyString(), anyInt(), any(), anyLong());
     }
 
     @Test
@@ -118,8 +123,13 @@ class ReviewOrchestratorTest {
 
         orchestrator.review(buildPayload("perf: xxx"));
 
-        verify(gitHubClient).postReview(eq(OWNER), eq(REPO), eq(PR_NUMBER),
-                contains("PRoverlap 审查异常"), eq(INSTALLATION_ID));
+        verify(gitHubClient)
+                .postReview(
+                        eq(OWNER),
+                        eq(REPO),
+                        eq(PR_NUMBER),
+                        contains("PRoverlap 审查异常"),
+                        eq(INSTALLATION_ID));
     }
 
     // ==================== API 同步模式 ====================
@@ -138,14 +148,14 @@ class ReviewOrchestratorTest {
     @Test
     @DisplayName("reviewSync — 无标题回退 feat 全维度")
     void syncNoTitle() {
-        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER))
-                .thenReturn(DIFF);
+        when(gitHubClient.getPullRequestDiff(OWNER, REPO, PR_NUMBER)).thenReturn(DIFF);
         when(gitHubClient.getPrBranch(anyString(), anyString(), anyInt())).thenReturn("main");
         when(contextBuilder.build(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "xd", true)));
-        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("xd", 0));
+        when(resultAggregator.aggregate(any()))
+                .thenReturn(new ResultAggregator.AggregationResult("xd", 0));
 
         ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
 
@@ -168,13 +178,21 @@ class ReviewOrchestratorTest {
                 .thenReturn("context");
         when(dimensionReviewer.review(anyString(), anyString(), any()))
                 .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security", "ok", true)));
-        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("ok", 0));
+        when(resultAggregator.aggregate(any()))
+                .thenReturn(new ResultAggregator.AggregationResult("ok", 0));
 
         orchestrator.review(buildPayload("feat: x"));
 
         verify(gitHubClient).createCheckRun(eq(OWNER), eq(REPO), anyString(), eq(INSTALLATION_ID));
-        verify(gitHubClient).updateCheckRun(eq(OWNER), eq(REPO), eq(1L),
-                eq("success"), anyString(), anyString(), eq(INSTALLATION_ID));
+        verify(gitHubClient)
+                .updateCheckRun(
+                        eq(OWNER),
+                        eq(REPO),
+                        eq(1L),
+                        eq("success"),
+                        anyString(),
+                        anyString(),
+                        eq(INSTALLATION_ID));
     }
 
     @Test
@@ -188,17 +206,34 @@ class ReviewOrchestratorTest {
         when(gitHubClient.getPrBranch(anyString(), anyString(), anyInt())).thenReturn("main");
         when(contextBuilder.build(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn("context");
-        Finding blocking = Finding.builder().severity("阻断").file("a.java").line(1)
-                .title("x").confidence(0.9).modelSource("modelA").build();
+        Finding blocking =
+                Finding.builder()
+                        .severity("阻断")
+                        .file("a.java")
+                        .line(1)
+                        .title("x")
+                        .confidence(0.9)
+                        .modelSource("modelA")
+                        .build();
         when(dimensionReviewer.review(anyString(), anyString(), any()))
-                .thenReturn(List.of(DimensionReviewer.DimensionResult.of("security",
-                        "1 阻断 · 0 警告", true, List.of(blocking))));
-        when(resultAggregator.aggregate(any())).thenReturn(new ResultAggregator.AggregationResult("1 阻断 · 0 警告\n> **阻断** x", 1));
+                .thenReturn(
+                        List.of(
+                                DimensionReviewer.DimensionResult.of(
+                                        "security", "1 阻断 · 0 警告", true, List.of(blocking))));
+        when(resultAggregator.aggregate(any()))
+                .thenReturn(new ResultAggregator.AggregationResult("1 阻断 · 0 警告\n> **阻断** x", 1));
 
         orchestrator.review(buildPayload("fix: xxx"));
 
-        verify(gitHubClient).updateCheckRun(eq(OWNER), eq(REPO), eq(1L),
-                eq("failure"), anyString(), anyString(), eq(INSTALLATION_ID));
+        verify(gitHubClient)
+                .updateCheckRun(
+                        eq(OWNER),
+                        eq(REPO),
+                        eq(1L),
+                        eq("failure"),
+                        anyString(),
+                        anyString(),
+                        eq(INSTALLATION_ID));
     }
 
     @Test
@@ -212,8 +247,15 @@ class ReviewOrchestratorTest {
 
         orchestrator.review(buildPayload("perf: xxx"));
 
-        verify(gitHubClient).updateCheckRun(eq(OWNER), eq(REPO), eq(1L),
-                eq("failure"), anyString(), anyString(), eq(INSTALLATION_ID));
+        verify(gitHubClient)
+                .updateCheckRun(
+                        eq(OWNER),
+                        eq(REPO),
+                        eq(1L),
+                        eq("failure"),
+                        anyString(),
+                        anyString(),
+                        eq(INSTALLATION_ID));
     }
 
     // ==================== API 模式边界 ====================
@@ -227,8 +269,8 @@ class ReviewOrchestratorTest {
 
         ReviewResult result = orchestrator.reviewSync(OWNER, REPO, PR_NUMBER);
 
-        assertTrue(result.getFindings().contains("未配置 GitHub 认证"),
-                "应返回配置指引: " + result.getFindings());
+        assertTrue(
+                result.getFindings().contains("未配置 GitHub 认证"), "应返回配置指引: " + result.getFindings());
     }
 
     // ==================== 工具方法 ====================

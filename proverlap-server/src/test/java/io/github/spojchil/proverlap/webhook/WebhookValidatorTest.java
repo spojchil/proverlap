@@ -1,6 +1,13 @@
 package io.github.spojchil.proverlap.webhook;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
+
 import io.github.spojchil.proverlap.config.GitHubProperties;
+import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,17 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
-
-/**
- * Webhook HMAC 签名验证单元测试。
- */
+/** Webhook HMAC 签名验证单元测试。 */
 @DisplayName("WebhookValidator 签名验证单元测试")
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -29,8 +26,7 @@ class WebhookValidatorTest {
     private static final String SECRET = "test-webhook-secret";
     private static final String BODY = "{\"action\":\"opened\",\"pull_request\":{\"number\":1}}";
 
-    @Mock
-    private GitHubProperties properties;
+    @Mock private GitHubProperties properties;
 
     private WebhookValidator validator;
 

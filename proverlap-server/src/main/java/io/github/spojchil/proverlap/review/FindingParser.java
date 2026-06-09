@@ -11,8 +11,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * LLM 审查输出解析器 — 从 JSON 文本提取结构化发现列表。
- * <p>
- * 模型通过 {@code response_format: json_object} 返回结构化 JSON：
+ *
+ * <p>模型通过 {@code response_format: json_object} 返回结构化 JSON：
+ *
  * <pre>{@code
  * {
  *   "findings": [
@@ -31,7 +32,7 @@ public class FindingParser {
     /**
      * 从 LLM JSON 输出解析发现列表。
      *
-     * @param text        LLM 返回的 JSON 文本
+     * @param text LLM 返回的 JSON 文本
      * @param modelSource 来源模型标识（如 deepseek-v4-flash）
      * @return 结构化发现列表
      */
@@ -51,15 +52,16 @@ public class FindingParser {
         if (!findingsNode.isArray()) return findings;
 
         for (JsonNode node : findingsNode) {
-            Finding f = Finding.builder()
-                    .severity(node.path("severity").asText("警告"))
-                    .file(node.path("file").asText(""))
-                    .line(node.path("line").asInt(0))
-                    .title(node.path("title").asText(""))
-                    .description(node.path("description").asText(""))
-                    .suggestion(node.path("suggestion").asText(""))
-                    .modelSource(modelSource)
-                    .build();
+            Finding f =
+                    Finding.builder()
+                            .severity(node.path("severity").asText("警告"))
+                            .file(node.path("file").asText(""))
+                            .line(node.path("line").asInt(0))
+                            .title(node.path("title").asText(""))
+                            .description(node.path("description").asText(""))
+                            .suggestion(node.path("suggestion").asText(""))
+                            .modelSource(modelSource)
+                            .build();
             findings.add(f);
         }
 
@@ -68,9 +70,8 @@ public class FindingParser {
 
     /**
      * 从 LLM 原始输出中提取 JSON 部分。
-     * <p>
-     * 有时 LLM 会在 JSON 外包裹 markdown 代码块（```json ... ```），
-     * 提取内部的纯 JSON 文本。无 markdown 包裹时直接返回原文。
+     *
+     * <p>有时 LLM 会在 JSON 外包裹 markdown 代码块（```json ... ```）， 提取内部的纯 JSON 文本。无 markdown 包裹时直接返回原文。
      */
     static String extractJson(String text) {
         String trimmed = text.trim();

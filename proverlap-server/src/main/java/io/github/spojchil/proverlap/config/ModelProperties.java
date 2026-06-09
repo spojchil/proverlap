@@ -6,9 +6,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * LLM 模型配置属性。
- * <p>
- * 两个可插拔模型插槽 A 和 B，通过环境变量注入 base-url、api-key、model-name，
- * 可对接任何兼容 OpenAI 接口格式的模型（DeepSeek、智谱、Claude via API Gateway 等）。
+ *
+ * <p>两个可插拔模型插槽 A 和 B，通过环境变量注入 base-url、api-key、model-name， 可对接任何兼容 OpenAI
+ * 接口格式的模型（DeepSeek、智谱、Claude via API Gateway 等）。
  */
 @Data
 @Component

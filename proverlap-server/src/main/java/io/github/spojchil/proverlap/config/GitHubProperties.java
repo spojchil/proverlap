@@ -6,9 +6,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * GitHub App 配置属性。
- * <p>
- * 包含 GitHub App 认证和 Webhook HMAC 签名所需的配置。
- * 私钥支持 PKCS#8（BEGIN PRIVATE KEY）和 PKCS#1（BEGIN RSA PRIVATE KEY）两种 PEM 格式。
+ *
+ * <p>包含 GitHub App 认证和 Webhook HMAC 签名所需的配置。 私钥支持 PKCS#8（BEGIN PRIVATE KEY）和 PKCS#1（BEGIN RSA
+ * PRIVATE KEY）两种 PEM 格式。
  */
 @Data
 @Component
